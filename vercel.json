@@ -1,19 +1,7 @@
 {
   "functions": {
-    "api/claude.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/search.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/enrich-contact.js": {
-      "runtime": "nodejs18.x"
+    "api/**/*.js": {
+      "runtime": "@vercel/node"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ]
+  }
 }
