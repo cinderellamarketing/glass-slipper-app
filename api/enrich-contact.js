@@ -148,6 +148,8 @@ async function performWebSearch(query) {
 // Helper function for Claude analysis
 async function performClaudeAnalysis(prompt) {
   try {
+    console.log('Making Claude API call from enrich-contact...');
+    
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -156,7 +158,7 @@ async function performClaudeAnalysis(prompt) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
+        model: 'claude-3-5-sonnet-20241022',  // Updated model
         max_tokens: 1000,
         messages: [{
           role: 'user',
@@ -165,6 +167,22 @@ async function performClaudeAnalysis(prompt) {
       })
     });
 
+    console.log('Claude API response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Claude API Error:', errorText);
+      throw new Error(`Claude API failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('Claude API success in enrich-contact');
+    return data.content[0].text;
+  } catch (error) {
+    console.error('Claude API failed in enrich-contact:', error.message);
+    throw error;
+  }
+}
     if (!response.ok) {
       throw new Error(`Claude API failed: ${response.status}`);
     }
