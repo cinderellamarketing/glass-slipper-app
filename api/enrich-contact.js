@@ -69,7 +69,7 @@ IMPORTANT:
 - If information isn't found in results, say "Not found"
 - Extract exact phone numbers, addresses, URLs as they appear
 
-Please respond with ONLY a JSON object in this exact format:
+Please respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
 {
   "basicInfo": {
     "phone": "Exact phone number found or 'Not found'",
@@ -91,14 +91,60 @@ Please respond with ONLY a JSON object in this exact format:
     const enrichmentData = await performClaudeAnalysis(analysisPrompt);
     
     console.log('Claude analysis completed');
+    console.log('Raw Claude response:', enrichmentData.substring(0, 200) + '...');
     
-    // Clean Claude's response (remove markdown code blocks)
-    const cleanedResponse = enrichmentData.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Multiple cleaning approaches for Claude's response
+    let cleanedResponse = enrichmentData;
     
-    res.json({ 
-      success: true, 
-      data: JSON.parse(cleanedResponse) 
-    });
+    // Remove markdown code blocks
+    cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
+    cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
+    
+    // Remove any leading/trailing whitespace
+    cleanedResponse = cleanedResponse.trim();
+    
+    // Find JSON object (look for first { and last })
+    const firstBrace = cleanedResponse.indexOf('{');
+    const lastBrace = cleanedResponse.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+      cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+    }
+    
+    console.log('Cleaned response:', cleanedResponse.substring(0, 200) + '...');
+    
+    try {
+      const parsedData = JSON.parse(cleanedResponse);
+      res.json({ 
+        success: true, 
+        data: parsedData 
+      });
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError.message);
+      console.error('Problematic text:', cleanedResponse.substring(0, 500));
+      
+      // Return a manual fallback response
+      res.json({
+        success: true,
+        data: {
+          basicInfo: {
+            phone: "Claude response parsing failed",
+            location: "Claude response parsing failed",
+            industry: "Claude response parsing failed", 
+            companyWebsite: "Claude response parsing failed",
+            linkedinProfile: "Claude response parsing failed"
+          },
+          companyIntelligence: {
+            companyFullName: contact.company,
+            companySize: "Claude response parsing failed",
+            services: "Claude response parsing failed",
+            foundOnWebsite: "JSON parse error occurred"
+          },
+          searchQuality: "Low",
+          dataSource: "Search succeeded but Claude response parsing failed"
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Contact enrichment failed:', error);
