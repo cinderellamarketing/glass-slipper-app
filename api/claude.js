@@ -13,8 +13,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Claude API request received');
-    
     const { prompt, model = 'claude-sonnet-4-20250514', maxTokens = 2000 } = req.body;
     
     if (!prompt) {
@@ -25,8 +23,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Claude API key not configured' });
     }
 
-    console.log('✅ Using Claude Sonnet 4 model');
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -35,7 +31,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',  // Correct model!
+        model: 'claude-sonnet-4-20250514',
         max_tokens: maxTokens,
         messages: [{
           role: 'user',
@@ -44,24 +40,18 @@ export default async function handler(req, res) {
       })
     });
 
-    console.log('Claude API response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Claude API Error:', errorText);
       throw new Error(`Claude API failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('✅ Claude API success');
-    
     res.json({ 
       success: true, 
       data: data.content[0].text 
     });
 
   } catch (error) {
-    console.error('Claude API Error:', error.message);
     res.status(500).json({ 
       error: 'Claude API request failed', 
       details: error.message 

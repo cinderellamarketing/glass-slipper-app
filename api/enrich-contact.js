@@ -35,7 +35,10 @@ export default async function handler(req, res) {
       performWebSearch(companyQuery)
     ]);
 
-    console.log('Search results received');
+    console.log('Search results received:', { 
+      personResults: personResults?.organic?.length || 0,
+      companyResults: companyResults?.organic?.length || 0
+    });
 
     // Step 2: Use Claude to analyze results
     const analysisPrompt = `
@@ -107,7 +110,7 @@ Please respond with ONLY a JSON object in this exact format:
           linkedinProfile: "Search failed"
         },
         companyIntelligence: {
-          companyFullName: contact.company || "Unknown",
+          companyFullName: (req.body.contact && req.body.contact.company) || "Unknown",
           companySize: "Search failed",
           services: "Search failed", 
           foundOnWebsite: "Search API unavailable"
@@ -158,7 +161,7 @@ async function performClaudeAnalysis(prompt) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',  // Changed from the old model
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 1500,
         messages: [{
           role: 'user',
@@ -180,17 +183,6 @@ async function performClaudeAnalysis(prompt) {
     return data.content[0].text;
   } catch (error) {
     console.error('Claude API failed in enrich-contact:', error.message);
-    throw error;
-  }
-}
-    if (!response.ok) {
-      throw new Error(`Claude API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.content[0].text;
-  } catch (error) {
-    console.error('Claude API failed:', error.message);
     throw error;
   }
 }
