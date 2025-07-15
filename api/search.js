@@ -37,6 +37,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('Serper API Error:', errorText);
       throw new Error(`Search API failed: ${response.status}`);
     }
 
@@ -47,6 +48,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
+    console.error('Search API request failed:', error);
     res.status(500).json({ 
       error: 'Search API request failed', 
       details: error.message 
