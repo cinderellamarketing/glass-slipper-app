@@ -24,15 +24,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Validate environment variables
-    if (!process.env.SERPER_API_KEY) {
-      return res.status(500).json({ error: 'Serper API key not configured' });
-    }
-
-    if (!process.env.CLAUDE_API_KEY) {
-      return res.status(500).json({ error: 'Claude API key not configured' });
-    }
-
     // Step 1: Perform web searches
     const personQuery = `"${contact.firstName} ${contact.lastName}" "${contact.company}"`;
     const companyQuery = `"${contact.company}" website contact phone`;
@@ -49,9 +40,9 @@ export default async function handler(req, res) {
       companyResults: companyResults?.organic?.length || 0
     });
 
-    // Step 2: Use Claude to analyse results
+    // Step 2: Use Claude to analyze results
     const analysisPrompt = `
-You are a professional researcher analysing web search results to extract contact information.
+You are a professional researcher analyzing web search results to extract contact information.
 
 PERSON SEARCH RESULTS:
 ${JSON.stringify(personResults, null, 2)}
@@ -101,18 +92,12 @@ Please respond with ONLY a JSON object in this exact format:
     
     console.log('Claude analysis completed');
     
-    // Parse the response and handle potential JSON parsing errors
-    let parsedData;
-    try {
-      parsedData = JSON.parse(enrichmentData);
-    } catch (parseError) {
-      console.error('Failed to parse Claude response:', parseError);
-      throw new Error('Invalid response format from analysis');
-    }
-
+    // Clean Claude's response (remove markdown code blocks)
+    const cleanedResponse = enrichmentData.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
     res.json({ 
       success: true, 
-      data: parsedData 
+      data: JSON.parse(cleanedResponse) 
     });
 
   } catch (error) {
