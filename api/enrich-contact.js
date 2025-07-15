@@ -158,8 +158,8 @@ async function performClaudeAnalysis(prompt) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',  // Updated model
-        max_tokens: 1000,
+        model: 'claude-sonnet-4-20250514',  // Changed from the old model
+        max_tokens: 1500,
         messages: [{
           role: 'user',
           content: prompt

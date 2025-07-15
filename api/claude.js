@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,20 +15,17 @@ export default async function handler(req, res) {
   try {
     console.log('Claude API request received');
     
-    const { prompt, model = 'claude-3-5-sonnet-20241022', maxTokens = 1000 } = req.body;
+    const { prompt, model = 'claude-sonnet-4-20250514', maxTokens = 2000 } = req.body;
     
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
     if (!process.env.CLAUDE_API_KEY) {
-      console.log('❌ No Claude API key found in environment');
       return res.status(500).json({ error: 'Claude API key not configured' });
     }
 
-    console.log('✅ Claude API key found, making request...');
-    console.log('Model:', model);
-    console.log('Max tokens:', maxTokens);
+    console.log('✅ Using Claude Sonnet 4 model');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -39,7 +35,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: model,
+        model: 'claude-sonnet-4-20250514',  // Correct model!
         max_tokens: maxTokens,
         messages: [{
           role: 'user',
@@ -52,7 +48,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Claude API Error Response:', errorText);
+      console.error('Claude API Error:', errorText);
       throw new Error(`Claude API failed: ${response.status} - ${errorText}`);
     }
 
@@ -65,7 +61,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Claude API Error:', error.message);
+    console.error('Claude API Error:', error.message);
     res.status(500).json({ 
       error: 'Claude API request failed', 
       details: error.message 
