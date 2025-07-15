@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -14,8 +13,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Search API request received');
-    
     const { query, num = 10 } = req.body;
     
     if (!query) {
@@ -40,20 +37,16 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Search API Error:', response.status, errorText);
       throw new Error(`Search API failed: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Search API success');
-    
     res.json({ 
       success: true, 
       data: data 
     });
 
   } catch (error) {
-    console.error('Search API Error:', error.message);
     res.status(500).json({ 
       error: 'Search API request failed', 
       details: error.message 
