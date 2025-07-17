@@ -289,31 +289,73 @@ const GlassSlipperApp = () => {
     }, 3000);
   };
 
-  // AI Categorization
+  // AI Categorization with intelligent matching
   const categorizeContact = (contact) => {
-    const { targetMarket, referralPartners } = user;
+    const { targetMarket, referralPartners, businessType } = user;
     
     if (!targetMarket) return 'Other';
     
-    const industry = contact.enrichmentData?.industry || contact.position || '';
-    const company = contact.company || '';
+    const industry = (contact.enrichmentData?.industry || contact.position || '').toLowerCase();
+    const company = (contact.company || '').toLowerCase();
+    const position = (contact.position || '').toLowerCase();
+    
+    // Normalize target market for better matching
+    const normalizedTargetMarket = targetMarket.toLowerCase();
+    const normalizedReferralPartners = (referralPartners || '').toLowerCase();
+    const normalizedBusinessType = (businessType || '').toLowerCase();
+    
+    // Enhanced matching logic with industry hierarchies and synonyms
+    const industryMatches = {
+      'professional services': ['consulting', 'advisory', 'legal', 'accounting', 'audit', 'tax', 'hr', 'human resources', 'recruitment', 'marketing', 'advertising', 'pr', 'communications', 'it', 'technology', 'software', 'finance', 'financial', 'wealth', 'investment', 'banking', 'insurance', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency'],
+      'finance': ['financial', 'wealth', 'investment', 'banking', 'insurance', 'accounting', 'audit', 'tax', 'money', 'fund', 'asset', 'pension', 'mortgage', 'loan', 'treasury', 'risk', 'compliance', 'fintech'],
+      'marketing': ['advertising', 'digital', 'social media', 'seo', 'ppc', 'content', 'brand', 'pr', 'communications', 'media', 'creative', 'campaign', 'growth', 'acquisition', 'engagement', 'analytics'],
+      'tech': ['technology', 'software', 'IT', 'development', 'programming', 'data', 'analytics', 'cloud', 'cybersecurity', 'ai', 'automation', 'saas', 'platform', 'infrastructure', 'devops'],
+      'consulting': ['advisory', 'consultant', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency', 'change', 'process', 'improvement', 'optimization'],
+      'healthcare': ['medical', 'health', 'pharmaceutical', 'clinical', 'hospital', 'doctor', 'nurse', 'therapy', 'wellness', 'biotech', 'diagnostics', 'treatment'],
+      'education': ['training', 'learning', 'academic', 'university', 'school', 'teaching', 'course', 'certification', 'elearning', 'coaching', 'development'],
+      'retail': ['ecommerce', 'shopping', 'commerce', 'sales', 'store', 'merchandise', 'consumer', 'customer', 'marketplace', 'distribution'],
+      'manufacturing': ['production', 'industrial', 'factory', 'supply', 'logistics', 'operations', 'quality', 'assembly', 'fabrication', 'processing'],
+      'legal': ['law', 'attorney', 'lawyer', 'solicitor', 'barrister', 'litigation', 'contracts', 'compliance', 'regulatory', 'intellectual property'],
+      'hr': ['human resources', 'recruitment', 'staffing', 'talent', 'workforce', 'payroll', 'benefits', 'training', 'development', 'culture']
+    };
+    
+    // Function to check if text matches target market or its synonyms
+    const isMatchingIndustry = (text, target) => {
+      // Direct match
+      if (text.includes(target)) return true;
+      
+      // Check synonyms
+      for (const [key, synonyms] of Object.entries(industryMatches)) {
+        if (target.includes(key) || synonyms.some(syn => target.includes(syn))) {
+          return synonyms.some(syn => text.includes(syn)) || text.includes(key);
+        }
+      }
+      
+      // Check if target words appear in text
+      const targetWords = target.split(' ');
+      return targetWords.some(word => word.length > 2 && text.includes(word));
+    };
     
     // Check for ideal client match
-    if (industry.toLowerCase().includes(targetMarket.toLowerCase()) || 
-        company.toLowerCase().includes(targetMarket.toLowerCase())) {
+    if (isMatchingIndustry(industry, normalizedTargetMarket) || 
+        isMatchingIndustry(company, normalizedTargetMarket) ||
+        isMatchingIndustry(position, normalizedTargetMarket)) {
       return 'Ideal Client';
     }
     
     // Check for referral partner match
-    if (referralPartners && 
-        (industry.toLowerCase().includes(referralPartners.toLowerCase()) || 
-         company.toLowerCase().includes(referralPartners.toLowerCase()))) {
+    if (normalizedReferralPartners && 
+        (isMatchingIndustry(industry, normalizedReferralPartners) || 
+         isMatchingIndustry(company, normalizedReferralPartners) ||
+         isMatchingIndustry(position, normalizedReferralPartners))) {
       return 'Referral Partners';
     }
     
-    // Simple competitor detection
-    if (industry.toLowerCase().includes('marketing') || 
-        industry.toLowerCase().includes('consulting')) {
+    // Check for competitor match (similar to user's business type)
+    if (normalizedBusinessType && 
+        (isMatchingIndustry(industry, normalizedBusinessType) || 
+         isMatchingIndustry(company, normalizedBusinessType) ||
+         isMatchingIndustry(position, normalizedBusinessType))) {
       return 'Competitors';
     }
     
@@ -336,7 +378,7 @@ const GlassSlipperApp = () => {
     }, 1500);
   };
 
-  // Strategy generation
+  // Strategy generation with real AI
   const generateStrategy = async () => {
     if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
       alert('Please fill in all strategy fields first');
@@ -346,72 +388,148 @@ const GlassSlipperApp = () => {
     setLoadingMessage('Generating your LinkedIn strategy...');
     setShowLoadingModal(true);
     
-    // Simulate strategy generation
-    setTimeout(() => {
-      const generatedStrategy = `
-Based on your inputs, here's your LinkedIn strategy:
+    try {
+      // Create comprehensive prompt based on LinkedIn Formula
+      const prompt = `You are an expert LinkedIn strategist implementing Adam Jones' LinkedIn Formula methodology. 
 
-**Your One Offer**: ${strategy.oneOffer}
+User's Business Details:
+- One Offer: ${strategy.oneOffer}
+- Ideal Referral Partners: ${strategy.idealReferralPartners}
+- What Makes Them Special: ${strategy.specialFactors}
+- Business Type: ${user.businessType}
+- Target Market: ${user.targetMarket}
+- Writing Style: ${user.writingStyle}
 
-**Target Audience**: Your ideal clients are those who need ${strategy.oneOffer.toLowerCase()}. Focus on decision-makers in relevant industries.
+Based on Adam Jones' LinkedIn Formula 10-step process:
+1. Define your one offer ✓
+2. Create your value proposition
+3. Build your Ideal Customer Profile
+4. Do some customer interviews
+5. Discover your style ✓
+6. Shoot some content
+7. Write your profile
+8. Build the strategy
+9. Start implementing it
+10. Constantly review
 
-**Referral Partners**: ${strategy.idealReferralPartners}
+Key principles from the LinkedIn Formula:
+- Focus on ONE thing to be known for
+- Your profile is a landing page
+- Content funnel: 3x Awareness, 2x Interest, 1x Decision, 1x Action
+- Content types: Education, Storytelling, Personal, Expertise, Sales
+- Success requires strategic preparation - 8 of 10 steps happen before posting
+- Stop selling, start helping
+- Content strategy: Case Study → Advice → Personal → Sales → Testimonial
 
-**Unique Value Proposition**: ${strategy.specialFactors}
+Create a comprehensive LinkedIn strategy that includes:
 
-**Content Strategy**: 
-- Share case studies related to ${strategy.oneOffer}
-- Provide valuable insights about your industry
-- Engage with ${strategy.idealReferralPartners} to build relationships
-- Showcase your expertise in ${strategy.specialFactors}
+1. **Value Proposition** (following Adam's 3-part formula: What you provide + Who you provide it to + What makes you unique)
 
-**Pain Points to Address**:
-- Clients struggling with inefficient processes
-- Businesses looking to scale their operations
-- Organizations needing specialized expertise
-- Companies wanting to improve their market position
+2. **Ideal Customer Profile** (detailed description of who will buy from them)
 
-**Next Steps**:
-1. Create content calendar focusing on these themes
-2. Identify and connect with target prospects
-3. Engage with referral partners regularly
-4. Monitor and adjust strategy based on results
-      `;
+3. **Content Strategy** (specific content calendar following the funnel approach)
+
+4. **Profile Optimization** (headline, about section, call-to-action)
+
+5. **Engagement Strategy** (how to find and engage with ideal clients)
+
+6. **Pain Points** (specific problems their ideal clients face)
+
+7. **Implementation Plan** (step-by-step next actions)
+
+8. **Messaging Framework** (how to start conversations that lead to business)
+
+Make this strategy actionable, specific, and based on proven LinkedIn Formula principles. Write in a straightforward, conversational tone that values radical candour. Include specific examples and avoid generic advice.`;
+
+      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 4000);
       
-      setStrategy(prev => ({ ...prev, generatedStrategy }));
+      setStrategy(prev => ({ ...prev, generatedStrategy: response }));
       setShowLoadingModal(false);
       setSuccessMessage('Strategy generated successfully!');
       setShowSuccessModal(true);
-    }, 3000);
+    } catch (error) {
+      console.error('Strategy generation failed:', error);
+      setShowLoadingModal(false);
+      alert('Failed to generate strategy. Please try again.');
+    }
   };
 
-  // Lead magnet generation
-  const generateLeadMagnet = (contactId) => {
+  // Lead magnet generation with real AI
+  const generateLeadMagnet = async (contactId) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
 
-    const customizedContent = `
-Dear ${contact.name},
+    setLoadingMessage('Generating personalized lead magnet...');
+    setShowLoadingModal(true);
 
-Based on your role as ${contact.position} at ${contact.company}, I've created this personalized resource to help you achieve better results with your LinkedIn strategy.
+    try {
+      const prompt = `You are creating a valuable lead magnet based on Adam Jones' LinkedIn Formula methodology.
 
-This guide includes:
-- Industry-specific insights for ${contact.enrichmentData?.industry || 'your industry'}
-- Tailored recommendations for ${contact.company}
-- Actionable steps you can implement immediately
+Contact Details:
+- Name: ${contact.name}
+- Company: ${contact.company}
+- Position: ${contact.position}
+- Industry: ${contact.enrichmentData?.industry || 'Not specified'}
+- Category: ${contact.category}
 
-Best regards,
-${user.name || currentUser.name}
-${user.company || currentUser.company}
-    `;
+User's Business:
+- One Offer: ${strategy.oneOffer}
+- Business Type: ${user.businessType}
+- Target Market: ${user.targetMarket}
+- Writing Style: ${user.writingStyle}
+- What Makes Them Special: ${strategy.specialFactors}
 
-    setSelectedLeadMagnet({
-      title: `Personalized LinkedIn Strategy for ${contact.name}`,
-      content: customizedContent,
-      contactName: contact.name,
-      company: contact.company
-    });
-    setShowLeadMagnetModal(true);
+CRITICAL: You must choose the BEST format for this specific contact and their likely problems:
+
+FORMAT OPTION 1 - HOW-TO GUIDE:
+Use this format when the contact needs actionable steps to solve a specific problem.
+Structure: "X Ways to [Solve Problem]" with numbered steps and explanations.
+Best for: Operational issues, process improvements, skill development
+
+FORMAT OPTION 2 - SELF-AUDIT CHECKLIST:
+Use this format when the contact needs to assess their current situation first.
+Structure: "The [Industry] Audit: Are You Making These Mistakes?" with checkboxes and scoring.
+Best for: Strategic assessments, identifying gaps, competitive analysis
+
+CHOOSE THE FORMAT that will be most valuable for ${contact.name} in ${contact.enrichmentData?.industry || 'their industry'} based on their likely pain points.
+
+Based on the LinkedIn Formula principles:
+- Focus on solving ONE specific problem
+- Provide genuine value, not just promotion
+- Make it actionable and implementable immediately
+- Use storytelling to make it engaging
+- Address specific pain points for their industry/role
+- Include a clear next step
+
+Create a valuable lead magnet that:
+1. Addresses a specific problem ${contact.name} at ${contact.company} likely faces
+2. Provides actionable steps they can implement immediately
+3. Demonstrates expertise without giving away everything
+4. Positions the user as the go-to expert for ${strategy.oneOffer}
+5. Includes a soft call-to-action for further help
+
+Write in ${user.writingStyle || 'professional'} tone. Include specific examples relevant to their ${contact.enrichmentData?.industry || 'industry'}.
+
+Length: 800-1200 words of high-value content.
+
+Start with the chosen format and make it incredibly valuable for their specific situation.`;
+
+      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 3000);
+      
+      setSelectedLeadMagnet({
+        title: `Personalized LinkedIn Strategy for ${contact.name}`,
+        content: response,
+        contactName: contact.name,
+        company: contact.company
+      });
+      
+      setShowLoadingModal(false);
+      setShowLeadMagnetModal(true);
+    } catch (error) {
+      console.error('Lead magnet generation failed:', error);
+      setShowLoadingModal(false);
+      alert('Failed to generate lead magnet. Please try again.');
+    }
   };
 
   // Stats calculations

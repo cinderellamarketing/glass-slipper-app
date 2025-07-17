@@ -1,13 +1,44 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>Glass Slipper</title>
   </head>
   <body>
     <div id="root"></div>
+    
+    <script>
+    window.claude = {
+      complete: async (prompt, model = 'claude-sonnet-4-20250514', maxTokens = 2000) => {
+        try {
+          const response = await fetch('/api/claude', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              prompt,
+              model,
+              maxTokens
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return data.data;
+        } catch (error) {
+          console.error('Claude API Error:', error);
+          throw error;
+        }
+      }
+    };
+    </script>
+    
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
