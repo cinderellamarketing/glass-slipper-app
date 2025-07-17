@@ -1,4 +1,74 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+// Generic lead magnet generation
+  const createGenericLeadMagnet = async () => {
+    setLoadingMessage('Generating lead magnet...');
+    setShowLoadingModal(true);
+
+    try {
+      const prompt = `You are creating a valuable lead magnet based on Adam Jones' LinkedIn Formula methodology.
+
+User's Business:
+- One Offer: ${strategy.oneOffer || 'Not specified'}
+- Business Type: ${user.businessType || 'Not specified'}
+- Target Market: ${user.targetMarket || 'Not specified'}
+- Writing Style: ${user.writingStyle || 'professional'}
+- What Makes Them Special: ${strategy.specialFactors || 'Not specified'}
+
+CRITICAL: You must choose the BEST format for this business and their target market:
+
+FORMAT OPTION 1 - HOW-TO GUIDE:
+Use this format when the target market needs actionable steps to solve a specific problem.
+Structure: "X Ways to [Solve Problem]" with numbered steps and explanations.
+Best for: Operational issues, process improvements, skill development
+
+FORMAT OPTION 2 - SELF-AUDIT CHECKLIST:
+Use this format when the target market needs to assess their current situation first.
+Structure: "The [Industry] Audit: Are You Making These Mistakes?" with checkboxes and scoring.
+Best for: Strategic assessments, identifying gaps, competitive analysis
+
+CHOOSE THE FORMAT that will be most valuable for businesses in ${user.targetMarket || 'your target market'} based on their likely pain points.
+
+Based on the LinkedIn Formula principles:
+- Focus on solving ONE specific problem
+- Provide genuine value, not just promotion
+- Make it actionable and implementable immediately
+- Use storytelling to make it engaging
+- Address specific pain points for the target market
+- Include a clear next step
+
+Create a valuable lead magnet that:
+1. Addresses a specific problem your target market faces
+2. Provides actionable steps they can implement immediately
+3. Demonstrates expertise without giving away everything
+4. Positions you as the go-to expert for ${strategy.oneOffer || 'your services'}
+5. Includes a soft call-to-action for further help
+
+Write in ${user.writingStyle || 'professional'} tone. Include specific examples relevant to ${user.targetMarket || 'your target market'}.
+
+Length: 800-1200 words of high-value content.
+
+Start with the chosen format and make it incredibly valuable for your target market.`;
+
+      const response = await window.claude.complete(prompt);
+      
+      const newLeadMagnet = {
+        id: Date.now(),
+        title: `${user.targetMarket || 'Business'} Lead Magnet`,
+        description: `A valuable resource for ${user.targetMarket || 'your target market'} to help them succeed`,
+        content: response,
+        createdAt: new Date().toISOString(),
+        isPersonalized: false
+      };
+      
+      setLeadMagnets(prev => [...prev, newLeadMagnet]);
+      setShowLoadingModal(false);
+      setSuccessMessage('Lead magnet created successfully!');
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('Lead magnet generation failed:', error);
+      setShowLoadingModal(false);
+      alert('Failed to generate lead magnet. Please try again.');
+    }
+  };import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, X, Loader, Star, Globe, Phone, MapPin, ExternalLink, Play, Pause } from 'lucide-react';
 
 const GlassSlipperApp = () => {
@@ -95,7 +165,8 @@ const GlassSlipperApp = () => {
       title: 'LinkedIn Strategy Guide',
       description: 'A comprehensive guide to building your LinkedIn presence',
       content: 'This is where the full lead magnet content would go...',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      isPersonalized: false
     }
   ]);
 
@@ -1320,18 +1391,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-white">Lead Magnets</h1>
               <button
-                onClick={() => {
-                  const newLeadMagnet = {
-                    id: Date.now(),
-                    title: 'New Lead Magnet',
-                    description: 'A new lead magnet description',
-                    content: 'This is the full content of the lead magnet...',
-                    createdAt: new Date().toISOString()
-                  };
-                  setLeadMagnets(prev => [...prev, newLeadMagnet]);
-                  setSuccessMessage('Lead magnet created successfully!');
-                  setShowSuccessModal(true);
-                }}
+                onClick={createGenericLeadMagnet}
                 className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
               >
                 <Plus className="w-5 h-5" />
@@ -1353,8 +1413,23 @@ Start with the chosen format and make it incredibly valuable for their specific 
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-white">{magnet.title}</h3>
                       <p className="text-white text-opacity-70 text-sm mt-2">{magnet.description}</p>
+                      
+                      {/* Show who it was created for if personalized */}
+                      {magnet.isPersonalized && magnet.contactName && (
+                        <div className="mt-3 p-2 bg-yellow-400 bg-opacity-20 rounded-lg">
+                          <p className="text-yellow-200 text-xs font-medium">
+                            Created for: {magnet.contactName}
+                            {magnet.company && ` at ${magnet.company}`}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <FileText className="w-6 h-6 text-yellow-400" />
+                    <div className="flex items-center space-x-2">
+                      {magnet.isPersonalized && (
+                        <div className="w-2 h-2 bg-green-400 rounded-full" title="Personalized"></div>
+                      )}
+                      <FileText className="w-6 h-6 text-yellow-400" />
+                    </div>
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -1384,18 +1459,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   Create your first lead magnet to start engaging with prospects
                 </p>
                 <button
-                  onClick={() => {
-                    const newLeadMagnet = {
-                      id: Date.now(),
-                      title: 'My First Lead Magnet',
-                      description: 'A starter lead magnet to get you going',
-                      content: 'Welcome to your first lead magnet! This is where you can provide valuable content to your prospects...',
-                      createdAt: new Date().toISOString()
-                    };
-                    setLeadMagnets(prev => [...prev, newLeadMagnet]);
-                    setSuccessMessage('Lead magnet created successfully!');
-                    setShowSuccessModal(true);
-                  }}
+                  onClick={createGenericLeadMagnet}
                   className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all"
                 >
                   Create First Lead Magnet
