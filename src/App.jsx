@@ -286,6 +286,78 @@ const GlassSlipperApp = () => {
     setShowContactModal(false);
   };
 
+  // Generic lead magnet generation
+  const createGenericLeadMagnet = async () => {
+    setLoadingMessage('Generating lead magnet...');
+    setShowLoadingModal(true);
+
+    try {
+      const prompt = `You are creating a valuable lead magnet based on Adam Jones' LinkedIn Formula methodology.
+
+User's Business:
+- One Offer: ${strategy.oneOffer || 'Not specified'}
+- Business Type: ${user.businessType || 'Not specified'}
+- Target Market: ${user.targetMarket || 'Not specified'}
+- Writing Style: ${user.writingStyle || 'professional'}
+- What Makes Them Special: ${strategy.specialFactors || 'Not specified'}
+
+CRITICAL: You must choose the BEST format for this business and their target market:
+
+FORMAT OPTION 1 - HOW-TO GUIDE:
+Use this format when the target market needs actionable steps to solve a specific problem.
+Structure: "X Ways to [Solve Problem]" with numbered steps and explanations.
+Best for: Operational issues, process improvements, skill development
+
+FORMAT OPTION 2 - SELF-AUDIT CHECKLIST:
+Use this format when the target market needs to assess their current situation first.
+Structure: "The [Industry] Audit: Are You Making These Mistakes?" with checkboxes and scoring.
+Best for: Strategic assessments, identifying gaps, competitive analysis
+
+CHOOSE THE FORMAT that will be most valuable for businesses in ${user.targetMarket || 'your target market'} based on their likely pain points.
+
+Based on the LinkedIn Formula principles:
+- Focus on solving ONE specific problem
+- Provide genuine value, not just promotion
+- Make it actionable and implementable immediately
+- Use storytelling to make it engaging
+- Address specific pain points for the target market
+- Include a clear next step
+
+Create a valuable lead magnet that:
+1. Addresses a specific problem your target market faces
+2. Provides actionable steps they can implement immediately
+3. Demonstrates expertise without giving away everything
+4. Positions you as the go-to expert for ${strategy.oneOffer || 'your services'}
+5. Includes a soft call-to-action for further help
+
+Write in ${user.writingStyle || 'professional'} tone. Include specific examples relevant to ${user.targetMarket || 'your target market'}.
+
+Length: 800-1200 words of high-value content.
+
+Start with the chosen format and make it incredibly valuable for your target market.`;
+
+      const response = await window.claude.complete(prompt);
+      
+      const newLeadMagnet = {
+        id: Date.now(),
+        title: `${user.targetMarket || 'Business'} Lead Magnet`,
+        description: `A valuable resource for ${user.targetMarket || 'your target market'} to help them succeed`,
+        content: response,
+        createdAt: new Date().toISOString(),
+        isPersonalized: false
+      };
+      
+      setLeadMagnets(prev => [...prev, newLeadMagnet]);
+      setShowLoadingModal(false);
+      setSuccessMessage('Lead magnet created successfully!');
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('Lead magnet generation failed:', error);
+      setShowLoadingModal(false);
+      alert('Failed to generate lead magnet. Please try again.');
+    }
+  };
+
   // Enrichment functions
   const enrichContact = async (contactId) => {
     if (enrichmentsLeft <= 0) {
