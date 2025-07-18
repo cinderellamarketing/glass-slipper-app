@@ -195,7 +195,10 @@ const GlassSlipperApp = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const text = e.target.result;
+        if (!e.target?.result) {
+          throw new Error('Failed to read file');
+        }
+        const text = e.target.result as string;
         const lines = text.split('\n').filter(line => line.trim());
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
 
@@ -204,12 +207,12 @@ const GlassSlipperApp = () => {
         const positionIndex = headers.findIndex(h => h.toLowerCase().includes('position') || h.toLowerCase().includes('title'));
         const emailIndex = headers.findIndex(h => h.toLowerCase().includes('email'));
 
-        const newContacts = [];
+        const newContacts: Contact[] = [];
 
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
           if (values.length > 1 && values[nameIndex] && values[nameIndex] !== '') {
-            const contact = {
+            const contact: Contact = {
               id: Date.now() + i,
               name: values[nameIndex] || 'Unknown',
               company: values[companyIndex] || 'Unknown Company',
@@ -414,7 +417,7 @@ const GlassSlipperApp = () => {
         `Insider Secrets: ${user.targetMarket} Best Practices`
       ];
 
-      const newLeadMagnet = {
+      const newLeadMagnet: LeadMagnet = {
         id: Date.now(),
         title: titles[Math.floor(Math.random() * titles.length)],
         description: `A comprehensive guide tailored for ${user.targetMarket} professionals, featuring proven strategies, case studies, and actionable insights from industry leaders.`,
@@ -898,7 +901,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
               </div>
 
               <nav className="hidden md:flex items-center space-x-1">
-                {navigationItems.map(item => {
+                {navigationItems.map((item: NavigationItem) => {
                   const Icon = item.icon;
                   return (
                     <button
@@ -945,7 +948,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
         {showMobileMenu && (
           <div className="md:hidden bg-purple-800 bg-opacity-90 border-t border-purple-700">
             <nav className="px-4 py-3 space-y-2">
-              {navigationItems.map(item => {
+              {navigationItems.map((item: NavigationItem) => {
                 const Icon = item.icon;
                 return (
                   <button
@@ -1078,9 +1081,9 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     <h5 className="font-medium text-white">Action Items:</h5>
                     
                     <div className="space-y-2">
-                      {['viewProfile', 'sendConnection', 'followUp'].map((taskKey) => {
+                      {['viewProfile', 'sendConnection', 'followUp'].map((taskKey: string) => {
                         const taskStatus = getTaskStatus(currentIdealClient.id, taskKey);
-                        const taskLabels = {
+                        const taskLabels: Record<string, string> = {
                           viewProfile: 'View LinkedIn profile',
                           sendConnection: 'Send connection request',
                           followUp: 'Schedule follow-up'
@@ -1277,7 +1280,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       type="text"
                       placeholder="Search contacts..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                     />
                   </div>
@@ -1285,11 +1288,11 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
 
                 <select
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategoryFilter(e.target.value)}
                   className="px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 >
                   <option value="All">All Categories</option>
-                  {categories.map(category => (
+                  {categories.map((category: string) => (
                     <option key={category} value={category} className="text-black">{category}</option>
                   ))}
                   <option value="Uncategorised" className="text-black">Uncategorised</option>
@@ -1329,7 +1332,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredContacts.map(contact => (
+                      {filteredContacts.map((contact: Contact) => (
                         <tr key={contact.id} className="border-b border-white border-opacity-10 hover:bg-white hover:bg-opacity-5">
                           <td className="py-4 px-6">
                             <div className="flex items-center space-x-3">
@@ -1349,11 +1352,11 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                           <td className="py-4 px-6">
                             <select
                               value={contact.category || 'Uncategorised'}
-                              onChange={(e) => updateCategory(contact.id, e.target.value)}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateCategory(contact.id, e.target.value)}
                               className="px-3 py-1 bg-white bg-opacity-20 text-white rounded text-sm focus:bg-opacity-30 focus:outline-none"
                             >
                               <option value="Uncategorised" className="text-black">Uncategorised</option>
-                              {categories.map(category => (
+                              {categories.map((category: string) => (
                                 <option key={category} value={category} className="text-black">{category}</option>
                               ))}
                             </select>
@@ -1413,7 +1416,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     </label>
                     <textarea
                       value={strategy.oneOffer}
-                      onChange={(e) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
                       rows={3}
                       className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="e.g., We help B2B SaaS companies increase their MRR by 40% through our proven sales automation system..."
@@ -1426,7 +1429,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     </label>
                     <textarea
                       value={strategy.idealReferralPartners}
-                      onChange={(e) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
                       rows={3}
                       className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="e.g., Business coaches, marketing agencies, sales consultants who work with our target market..."
@@ -1439,7 +1442,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     </label>
                     <textarea
                       value={strategy.specialFactors}
-                      onChange={(e) => setStrategy(prev => ({ ...prev, specialFactors: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setStrategy(prev => ({ ...prev, specialFactors: e.target.value }))}
                       rows={3}
                       className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="e.g., We're launching a new product, we have industry awards, we're expanding to new markets..."
@@ -1547,7 +1550,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {leadMagnets.map(leadMagnet => (
+                {leadMagnets.map((leadMagnet: LeadMagnet) => (
                   <div key={leadMagnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -1618,7 +1621,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
 
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
               <div className="space-y-4">
-                {tasks.map(task => (
+                {tasks.map((task: Task) => (
                   <div key={task.id} className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
@@ -1851,7 +1854,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   className="w-full px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 >
                   <option value="Uncategorised" className="text-black">Uncategorised</option>
-                  {categories.map(category => (
+                  {categories.map((category: string) => (
                     <option key={category} value={category} className="text-black">{category}</option>
                   ))}
                 </select>
@@ -1862,9 +1865,9 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                 <div>
                   <h5 className="text-white font-medium mb-3">Action Items</h5>
                   <div className="space-y-3">
-                    {['viewProfile', 'sendConnection', 'followUp', 'personalMessage', 'engageContent'].map((taskKey) => {
+                    {['viewProfile', 'sendConnection', 'followUp', 'personalMessage', 'engageContent'].map((taskKey: string) => {
                       const taskStatus = getTaskStatus(selectedContact.id, taskKey);
-                      const taskLabels = {
+                      const taskLabels: Record<string, string> = {
                         viewProfile: 'View LinkedIn profile',
                         sendConnection: 'Send connection request',
                         followUp: 'Schedule follow-up',
