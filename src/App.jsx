@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, X, Loader, Star, Globe, Phone, MapPin, ExternalLink, Play, Pause } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, X, Loader, Star, Globe, Phone, MapPin, ExternalLink, Play, Pause, Check } from 'lucide-react';
 
 const GlassSlipperApp = () => {
   // Authentication state
@@ -111,6 +111,71 @@ const GlassSlipperApp = () => {
     { id: 4, text: 'Create your first lead magnet', completed: false, priority: 'medium' },
     { id: 5, text: 'Enrich your ideal clients', completed: false, priority: 'low' }
   ]);
+
+  // CHANGE 1: Contact task management state
+  const [contactTasks, setContactTasks] = useState({});
+
+  // CHANGE 1: Load contact tasks from localStorage on mount
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('contactTasks');
+    if (savedTasks) {
+      setContactTasks(JSON.parse(savedTasks));
+    }
+  }, []);
+
+  // CHANGE 1: Save contact tasks to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('contactTasks', JSON.stringify(contactTasks));
+  }, [contactTasks]);
+
+  // CHANGE 1: Function to check if follow-up task should be shown
+  const shouldShowFollowUp = (contactId) => {
+    const tasks = contactTasks[contactId];
+    if (!tasks || !tasks.sendMessage || !tasks.sendMessage.completed) return false;
+    
+    const completedDate = new Date(tasks.sendMessage.completedDate);
+    const currentDate = new Date();
+    const diffTime = Math.abs(currentDate - completedDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays >= 3;
+  };
+
+  // CHANGE 1: Function to toggle task completion
+  const toggleContactTask = (contactId, taskKey) => {
+    setContactTasks(prev => {
+      const updatedTasks = { ...prev };
+      if (!updatedTasks[contactId]) {
+        updatedTasks[contactId] = {};
+      }
+      
+      if (!updatedTasks[contactId][taskKey]) {
+        updatedTasks[contactId][taskKey] = { completed: false, completedDate: null };
+      }
+      
+      // Toggle completion status
+      if (updatedTasks[contactId][taskKey].completed) {
+        // Uncomplete the task
+        updatedTasks[contactId][taskKey] = {
+          completed: false,
+          completedDate: null
+        };
+      } else {
+        // Complete the task
+        updatedTasks[contactId][taskKey] = {
+          completed: true,
+          completedDate: new Date().toISOString()
+        };
+      }
+      
+      return updatedTasks;
+    });
+  };
+
+  // CHANGE 1: Function to get task status
+  const getTaskStatus = (contactId, taskKey) => {
+    return contactTasks[contactId]?.[taskKey] || { completed: false, completedDate: null };
+  };
 
   // Form validation
   const validateAuthForm = () => {
@@ -1650,6 +1715,86 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   </div>
                 </div>
               )}
+
+              {/* CHANGE 1: Add task list to contact modal */}
+              <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg">
+                <h3 className="text-white font-medium mb-3">Contact Tasks</h3>
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'viewProfile')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'viewProfile').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'viewProfile').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      View profile
+                    </span>
+                  </div>
+
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'turnOnNotifications')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'turnOnNotifications').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'turnOnNotifications').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      Turn on notifications
+                    </span>
+                  </div>
+
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'sendMessage')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'sendMessage').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'sendMessage').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      Send Message to Existing Contacts
+                    </span>
+                  </div>
+
+                  {shouldShowFollowUp(selectedContact.id) && (
+                    <div
+                      className="flex items-center space-x-3 cursor-pointer"
+                      onClick={() => toggleContactTask(selectedContact.id, 'followUp')}
+                    >
+                      <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                        {getTaskStatus(selectedContact.id, 'followUp').completed && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <span className={`text-white ${
+                        getTaskStatus(selectedContact.id, 'followUp').completed 
+                          ? 'line-through opacity-50' 
+                          : ''
+                      }`}>
+                        Follow up
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="flex space-x-3 mt-6">
                 <button
