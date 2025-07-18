@@ -480,13 +480,13 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
   };
 
   const handleLogin = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setIsAuthenticated(true);
     setCurrentView('dashboard');
   };
 
   const handleSignUp = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setIsAuthenticated(true);
     setCurrentView('dashboard');
   };
@@ -1324,49 +1324,49 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
               {contacts
                 .filter(contact => contactFilter === 'all' || contact.category === contactFilter)
                 .map(contact => (
-                <div key={contact.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{contact.firstName} {contact.lastName}</h3>
-                      <p className="text-white text-opacity-70 text-sm">{contact.position}</p>
-                      <p className="text-white text-opacity-60 text-xs">{contact.company}</p>
+                  <div key={contact.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">{contact.firstName} {contact.lastName}</h3>
+                        <p className="text-white text-opacity-70 text-sm">{contact.position}</p>
+                        <p className="text-white text-opacity-60 text-xs">{contact.company}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setSelectedContact(contact)}
+                          className="text-white text-opacity-70 hover:text-white transition-colors"
+                        >
+                          <User className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteContact(contact.id)}
+                          className="text-red-400 hover:text-red-300 transition-colors text-sm"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setSelectedContact(contact)}
-                        className="text-white text-opacity-70 hover:text-white transition-colors"
-                      >
-                        <User className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteContact(contact.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors text-sm"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      contact.category === 'Ideal Client' 
-                        ? 'bg-green-500 bg-opacity-20 text-green-300'
-                        : contact.category === 'Referral Partner'
-                        ? 'bg-blue-500 bg-opacity-20 text-blue-300'
-                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
-                    }`}>
-                      {contact.category}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      contact.enriched 
-                        ? 'bg-green-500 bg-opacity-20 text-green-300' 
-                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
-                    }`}>
-                      {contact.enriched ? 'Enriched' : 'Basic'}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        contact.category === 'Ideal Client' 
+                          ? 'bg-green-500 bg-opacity-20 text-green-300'
+                          : contact.category === 'Referral Partner'
+                          ? 'bg-blue-500 bg-opacity-20 text-blue-300'
+                          : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                      }`}>
+                        {contact.category}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        contact.enriched 
+                          ? 'bg-green-500 bg-opacity-20 text-green-300' 
+                          : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                      }`}>
+                        {contact.enriched ? 'Enriched' : 'Basic'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
@@ -1711,7 +1711,7 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
                   <button
                     onClick={() => {
                       setSelectedContact(null);
-                      setGeneratedMessage(''); // Clear generated message when closing modal
+                      setGeneratedMessage('');
                     }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
                   >
