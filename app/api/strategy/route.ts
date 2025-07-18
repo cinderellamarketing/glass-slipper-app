@@ -74,7 +74,11 @@ Format as a comprehensive strategy document with clear sections and bullet point
       ]
     });
 
-    const generatedStrategy = claudeResponse.content[0].text;
+    const firstContent = claudeResponse.content[0];
+    if (firstContent.type !== 'text') {
+      throw new Error('Expected text response from Claude');
+    }
+    const generatedStrategy = firstContent.text;
 
     return NextResponse.json({ 
       generatedStrategy,

@@ -70,7 +70,11 @@ Be strategic and business-focused in your categorisations.
     // Parse Claude's response
     let categorisationData;
     try {
-      const responseText = claudeResponse.content[0].text;
+      const firstContent = claudeResponse.content[0];
+      if (firstContent.type !== 'text') {
+        throw new Error('Expected text response from Claude');
+      }
+      const responseText = firstContent.text;
       // Remove any markdown formatting if present
       const jsonText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       categorisationData = JSON.parse(jsonText);
