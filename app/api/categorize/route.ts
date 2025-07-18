@@ -68,7 +68,7 @@ Be strategic and business-focused in your categorisations.
     });
 
     // Parse Claude's response
-    let categorisationData;
+    let categorisationData: any;
     try {
       const firstContent = claudeResponse.content[0];
       if (firstContent.type !== 'text') {

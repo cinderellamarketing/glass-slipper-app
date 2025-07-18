@@ -70,7 +70,7 @@ Rules:
         });
 
         // Parse Claude's response
-        let enrichmentData;
+        let enrichmentData: any;
         try {
           const firstContent = claudeResponse.content[0];
           if (firstContent.type !== 'text') {
