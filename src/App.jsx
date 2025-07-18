@@ -1986,17 +1986,17 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               </div>
 
               {/* Enrichment Data */}
-              {selectedContact.isEnriched && selectedContact.enrichmentData && (
+              {selectedContact.isEnriched && selectedContact.enrichmentData ? (
                 <div className="bg-white bg-opacity-10 rounded-lg p-4 space-y-3">
                   <h4 className="text-white font-medium mb-3">Enrichment Data</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Industry</p>
-                      <p className="text-white">{selectedContact.enrichmentData.industry}</p>
+                      <p className="text-white">{selectedContact.enrichmentData.industry !== 'Not found' ? selectedContact.enrichmentData.industry : 'Not available'}</p>
                     </div>
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Location</p>
-                      <p className="text-white">{selectedContact.enrichmentData.location}</p>
+                      <p className="text-white">{selectedContact.enrichmentData.location !== 'Not found' ? selectedContact.enrichmentData.location : 'Not available'}</p>
                     </div>
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Website</p>
@@ -2010,7 +2010,7 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                           {selectedContact.enrichmentData.website}
                         </a>
                       ) : (
-                        <p className="text-white">Not found</p>
+                        <p className="text-white">Not available</p>
                       )}
                     </div>
                     <div>
@@ -2025,10 +2025,14 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                           View Profile
                         </a>
                       ) : (
-                        <p className="text-white">Not found</p>
+                        <p className="text-white">Not available</p>
                       )}
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                  <p className="text-white text-opacity-70 text-center">Awaiting enrichment</p>
                 </div>
               )}
 
