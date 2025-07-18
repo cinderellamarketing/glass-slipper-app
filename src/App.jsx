@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, Check, Phone, Globe, X, ChevronDown, Search, ChevronLeft, MessageSquare, Bell, TrendingDown, Award, AlertCircle, Edit2, Trash2, DollarSign, Clock, Activity, BookOpen, Download, Send, Copy, Share2, Star, Link, RefreshCw, Filter, MoreVertical } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, Check, Phone, Globe, X, ChevronDown, Search, ChevronLeft, MessageSquare, Bell, TrendingDown, Award, AlertCircle, Edit2, Trash2, DollarSign, Clock, Activity, BookOpen, Download, Send, Copy, Share2, Star, Link, RefreshCw, Filter, MoreVertical, MapPin } from 'lucide-react';
 
 const GlassSlipperApp = () => {
   // User session state
@@ -401,14 +401,7 @@ const GlassSlipperApp = () => {
             position: values[positionIndex] || 'Unknown Position',
             email: values[emailIndex] || 'email@example.com',
             category: 'Uncategorized',
-            isEnriched: false,
-            phone: 'Not found',
-            website: 'Not found',
-            revenue: 'Not found',
-            employees: 'Not found',
-            industry: 'Not found',
-            technologies: [],
-            recentNews: []
+            isEnriched: false
           };
           newContacts.push(contact);
         }
@@ -1268,11 +1261,11 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               <h1 className="text-3xl font-bold text-white">Contacts</h1>
               <div className="flex items-center space-x-4">
                 <button
-                  onClick={enrichIdealClients}
+                  onClick={enrichContacts}
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
                 >
                   <Zap className="w-4 h-4" />
-                  <span>Enrich Ideal Clients</span>
+                  <span>Enrich Contacts</span>
                 </button>
                 <button
                   onClick={aiCategorizeAll}
@@ -1987,53 +1980,55 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                   <p className="text-white">{selectedContact.email}</p>
                 </div>
                 <div>
-                  <p className="text-white text-opacity-70 text-sm">Phone</p>
-                  <p className="text-white">{selectedContact.phone}</p>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Website</p>
-                  <p className="text-white">{selectedContact.website}</p>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Revenue</p>
-                  <p className="text-white">{selectedContact.revenue}</p>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Employees</p>
-                  <p className="text-white">{selectedContact.employees}</p>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Industry</p>
-                  <p className="text-white">{selectedContact.industry}</p>
+                  <p className="text-white text-opacity-70 text-sm">Status</p>
+                  <p className="text-white">{selectedContact.isEnriched ? 'Enriched' : 'Not enriched'}</p>
                 </div>
               </div>
 
-              {/* Technologies */}
-              {selectedContact.technologies && selectedContact.technologies.length > 0 && (
-                <div>
-                  <p className="text-white text-opacity-70 text-sm mb-2">Technologies Used</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedContact.technologies.map((tech, index) => (
-                      <span key={index} className="bg-purple-600 text-white text-xs px-2 py-1 rounded">
-                        {tech}
-                      </span>
-                    ))}
+              {/* Enrichment Data */}
+              {selectedContact.isEnriched && selectedContact.enrichmentData && (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 space-y-3">
+                  <h4 className="text-white font-medium mb-3">Enrichment Data</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-white text-opacity-70 text-sm">Industry</p>
+                      <p className="text-white">{selectedContact.enrichmentData.industry}</p>
+                    </div>
+                    <div>
+                      <p className="text-white text-opacity-70 text-sm">Location</p>
+                      <p className="text-white">{selectedContact.enrichmentData.location}</p>
+                    </div>
+                    <div>
+                      <p className="text-white text-opacity-70 text-sm">Website</p>
+                      {selectedContact.enrichmentData.website !== 'Not found' ? (
+                        <a 
+                          href={selectedContact.enrichmentData.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300"
+                        >
+                          {selectedContact.enrichmentData.website}
+                        </a>
+                      ) : (
+                        <p className="text-white">Not found</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white text-opacity-70 text-sm">LinkedIn Profile</p>
+                      {selectedContact.enrichmentData.linkedinProfile !== 'Not found' ? (
+                        <a 
+                          href={selectedContact.enrichmentData.linkedinProfile} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300"
+                        >
+                          View Profile
+                        </a>
+                      ) : (
+                        <p className="text-white">Not found</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Recent news */}
-              {selectedContact.recentNews && selectedContact.recentNews.length > 0 && (
-                <div>
-                  <p className="text-white text-opacity-70 text-sm mb-2">Recent News</p>
-                  <ul className="space-y-2">
-                    {selectedContact.recentNews.map((news, index) => (
-                      <li key={index} className="text-white text-opacity-90 flex items-start space-x-2">
-                        <span className="text-yellow-400 mt-1">•</span>
-                        <span>{news}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
               )}
 
@@ -2211,6 +2206,17 @@ Week 7-8: Analyze results and refine approach
 Remember: Success on LinkedIn = Consistency + Value + Authentic Relationships`;
     }
   };
+}
+
+// Configure API keys
+// Replace 'your-serper-api-key-here' with your actual Serper API key from https://serper.dev
+if (typeof window !== 'undefined') {
+  window.SERPER_API_KEY = window.SERPER_API_KEY || '3fd5bda7cce79e07cc06e38ad8225c5dab090f4d';
+  
+  // Alternatively, you can set it via environment variable in your build process:
+  // Create a .env file in your project root with:
+  // REACT_APP_SERPER_API_KEY=your-actual-serper-api-key
+  // Then the app will use process.env.REACT_APP_SERPER_API_KEY
 }
 
 export default GlassSlipperApp;
