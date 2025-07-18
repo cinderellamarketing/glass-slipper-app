@@ -651,6 +651,91 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
     }
   };
 
+  // Generate generic lead magnet
+  const generateGenericLeadMagnet = async () => {
+    if (!strategy.oneOffer) {
+      alert('Please complete your strategy first to generate a lead magnet');
+      setCurrentView('strategy');
+      return;
+    }
+
+    setLoadingMessage('Generating lead magnet...');
+    setShowLoadingModal(true);
+
+    try {
+      const prompt = `You are creating a valuable generic lead magnet based on Adam Jones' LinkedIn Formula methodology.
+
+User's Business:
+- One Offer: ${strategy.oneOffer}
+- Business Type: ${user.businessType}
+- Target Market: ${user.targetMarket}
+- Writing Style: ${user.writingStyle}
+- What Makes Them Special: ${strategy.specialFactors}
+
+Create a HIGH-VALUE lead magnet that can be used for ANY prospect in the ${user.targetMarket} market.
+
+Choose the BEST format:
+1. Industry Report/Trends Analysis
+2. Ultimate Guide/How-To
+3. Checklist/Audit Tool
+4. Case Study Compilation
+5. Template/Framework
+
+Based on the LinkedIn Formula principles:
+- Focus on solving ONE specific problem that's common in ${user.targetMarket}
+- Provide genuine value, not just promotion
+- Make it actionable and implementable immediately
+- Use storytelling to make it engaging
+- Address universal pain points for the industry
+- Include a clear next step
+
+Create a valuable lead magnet that:
+1. Addresses a common problem all ${user.targetMarket} companies face
+2. Provides actionable steps they can implement immediately
+3. Demonstrates expertise without giving away everything
+4. Positions the user as the go-to expert for ${strategy.oneOffer}
+5. Includes a soft call-to-action for further help
+
+Write in ${user.writingStyle || 'professional'} tone. Make it broadly applicable to any company in ${user.targetMarket}.
+
+Length: 1000-1500 words of high-value content.
+
+Start with an attention-grabbing title and make it incredibly valuable.`;
+
+      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 3000);
+      
+      // Extract title from the response (usually first line)
+      const lines = response.split('\n');
+      const title = lines[0].replace(/^#+\s*/, '').replace(/[*_]/g, '').trim();
+      
+      const newGenericLeadMagnet = {
+        id: Date.now(),
+        title: title || `${user.targetMarket} Industry Guide`,
+        description: `A comprehensive guide for ${user.targetMarket} companies`,
+        content: response,
+        createdAt: new Date().toISOString(),
+        isPersonalized: false
+      };
+      
+      setLeadMagnets(prev => [...prev, newGenericLeadMagnet]);
+      setSelectedLeadMagnet(newGenericLeadMagnet);
+      
+      setShowLoadingModal(false);
+      setShowLeadMagnetModal(true);
+      
+      // Mark task as complete if first lead magnet
+      if (leadMagnets.length === 0) {
+        setTasks(prev => prev.map(task => 
+          task.id === 5 ? { ...task, completed: true } : task
+        ));
+      }
+    } catch (error) {
+      console.error('Lead magnet generation failed:', error);
+      setShowLoadingModal(false);
+      alert('Failed to generate lead magnet. Please try again.');
+    }
+  };
+
   // Generate lead magnet with real AI
   const generateLeadMagnet = async (contactId) => {
     const contact = contacts.find(c => c.id === contactId);
@@ -1424,7 +1509,10 @@ Start with the chosen format and make it incredibly valuable for their specific 
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-white">Lead Magnets</h1>
-              <button className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all">
+              <button 
+                onClick={generateGenericLeadMagnet}
+                className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all"
+              >
                 <Plus className="w-5 h-5 inline mr-2" />
                 Create New
               </button>
