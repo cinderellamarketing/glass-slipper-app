@@ -1,10 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, User, Home, MessageSquare, UserCheck, Sparkles, Shield, Globe, Award, Users, ChevronRight, Check, X, Plus, Trash2, Edit2, RefreshCw, Mail, ExternalLink, Calendar, Phone, Building, Briefcase, Clock, CheckCircle, Info, Download, Search, Filter, TrendingUp, Target, BookOpen, Star, DollarSign, AlertCircle, ChevronDown } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, X, Loader, Star, Globe, Phone, MapPin, ExternalLink, Play, Pause, Check } from 'lucide-react';
 
-export default function GlassSlipperApp() {
+const GlassSlipperApp = () => {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authView, setAuthView] = useState('landing'); // 'landing', 'login', 'register'
+  const [authView, setAuthView] = useState('landing'); // landing, login, register
   const [authForm, setAuthForm] = useState({
     email: '',
     password: '',
@@ -12,46 +12,73 @@ export default function GlassSlipperApp() {
     name: '',
     company: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // User profile
+  // User state
   const [user, setUser] = useState({
-    name: 'Adam Jones',
-    email: 'adam@example.com',
-    company: 'Jones Consulting',
-    businessType: 'Financial Services',
-    targetMarket: 'Tech Companies',
-    writingStyle: 'Professional yet friendly',
-    referralPartners: 'Accountants, Business Coaches'
+    name: '',
+    email: '',
+    company: '',
+    businessType: '',
+    targetMarket: '',
+    writingStyle: '',
+    referralPartners: ''
   });
 
-  // Navigation state
-  const [currentView, setCurrentView] = useState('dashboard');
-  
-  // Contact management state
-  const [contacts, setContacts] = useState([
-    { id: 1, name: 'Emily Chen', company: 'TechStart Inc', position: 'CEO', phone: '+1-555-0123', linkedinUrl: 'https://linkedin.com/in/emilychen', category: 'Ideal Client', isEnriched: true, enrichmentData: { website: 'https://techstart.com', employees: '50-200', industry: 'Technology', revenue: '$5M-$10M', technologies: ['React', 'AWS', 'Python'], decisionMakers: 3, recentActivity: 'Raised Series A funding' } },
-    { id: 2, name: 'Michael Brown', company: 'Growth Marketing Ltd', position: 'Marketing Director', phone: 'Not found', linkedinUrl: 'https://linkedin.com/in/michaelbrown', category: 'Referral Partners', isEnriched: false }
-  ]);
-
-  // Current user for demo
+  // Current user (for display purposes)
   const currentUser = {
     name: 'Adam Jones',
-    email: 'adam@example.com',
-    company: 'Jones Consulting'
+    company: 'Demo Company',
+    email: 'adam@demo.com'
   };
 
-  // UI state
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [showContactModal, setShowContactModal] = useState(false);
+  // App state
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [contacts, setContacts] = useState([
+    {
+      id: 1,
+      name: 'Nick Teige',
+      company: 'Franklyn',
+      position: 'Wealth Manager',
+      phone: 'Search failed',
+      category: 'Uncategorised',
+      isEnriched: true,
+      enrichmentData: {
+        industry: 'Wealth Management - Financial Advice',
+        location: 'Cheshire',
+        website: 'https://franklyn.co.uk/',
+        linkedinProfile: ''
+      }
+    }
+  ]);
+
+  // Contact form state
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    company: '',
+    position: '',
+    phone: '',
+    linkedinProfile: ''
+  });
+
+  // File upload states
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Modal states
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
+  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState(null);
   const [showLoadingModal, setShowLoadingModal] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Working on it...');
+  const [successMessage, setSuccessMessage] = useState('Success!');
 
   // Strategy state
   const [strategy, setStrategy] = useState({
@@ -62,27 +89,18 @@ export default function GlassSlipperApp() {
   });
 
   // Lead magnets state
-  const [leadMagnets, setLeadMagnets] = useState([
-    {
-      id: 1,
-      title: 'LinkedIn Strategy Guide',
-      description: 'A comprehensive guide to building your LinkedIn presence',
-      content: 'This is where the full lead magnet content would go...',
-      createdAt: new Date().toISOString(),
-      isPersonalized: false
-    }
-  ]);
+  const [leadMagnets, setLeadMagnets] = useState([]);
 
-  // Enrichment counter
+  // Enrichments counter
   const [enrichmentsLeft, setEnrichmentsLeft] = useState(50);
 
-  // Task management
+  // Main onboarding tasks
   const [tasks, setTasks] = useState([
-    { id: 1, text: 'Complete your strategy section', completed: false, priority: 'high' },
-    { id: 2, text: 'Upload your LinkedIn connections', completed: false, priority: 'high' },
-    { id: 3, text: 'Set up your business profile', completed: false, priority: 'medium' },
-    { id: 4, text: 'Create your first lead magnet', completed: false, priority: 'medium' },
-    { id: 5, text: 'Enrich your ideal clients', completed: false, priority: 'low' }
+    { id: 1, text: 'Upload your LinkedIn connections', completed: false, priority: 'high' },
+    { id: 2, text: 'Configure your business settings', completed: false, priority: 'high' },
+    { id: 3, text: 'Auto-categorize your contacts', completed: false, priority: 'medium' },
+    { id: 4, text: 'Generate your LinkedIn strategy', completed: false, priority: 'medium' },
+    { id: 5, text: 'Create your first lead magnet', completed: false, priority: 'low' }
   ]);
 
   // CHANGE 1: Contact task management state
@@ -287,6 +305,14 @@ export default function GlassSlipperApp() {
     setCurrentView('dashboard');
   };
 
+  // Delete contact
+  const deleteContact = (contactId) => {
+    setContacts(prev => prev.filter(c => c.id !== contactId));
+    setShowContactModal(false);
+    setSuccessMessage('Contact deleted successfully!');
+    setShowSuccessModal(true);
+  };
+
   // File upload handler
   const handleFileUpload = useCallback((event) => {
     const file = event.target.files[0];
@@ -316,13 +342,20 @@ export default function GlassSlipperApp() {
               // Add some mock contacts
               const mockContacts = [
                 { id: Date.now() + 1, name: 'John Smith', company: 'Tech Corp', position: 'CEO', phone: 'Not found', category: 'Uncategorised', isEnriched: false },
-                { id: Date.now() + 2, name: 'Sarah Johnson', company: 'Marketing Ltd', position: 'Director', phone: 'Not found', category: 'Uncategorised', isEnriched: false }
+                { id: Date.now() + 2, name: 'Sarah Johnson', company: 'Marketing Ltd', position: 'Director', phone: 'Not found', category: 'Uncategorised', isEnriched: false },
+                { id: Date.now() + 3, name: 'Michael Chen', company: 'Finance Plus', position: 'CFO', phone: 'Not found', category: 'Uncategorised', isEnriched: false },
+                { id: Date.now() + 4, name: 'Emma Wilson', company: 'Design Studio', position: 'Creative Director', phone: 'Not found', category: 'Uncategorised', isEnriched: false },
+                { id: Date.now() + 5, name: 'Robert Taylor', company: 'Legal Associates', position: 'Partner', phone: 'Not found', category: 'Uncategorised', isEnriched: false }
               ];
               
               setContacts(prev => [...prev, ...mockContacts]);
               setSuccessMessage('Contacts uploaded successfully!');
+              setShowSuccessModal(true);
               
-              setTimeout(() => setSuccessMessage(''), 3000);
+              // Mark task as complete
+              setTasks(prev => prev.map(task => 
+                task.id === 1 ? { ...task, completed: true } : task
+              ));
             }, 500);
           }, 1000);
           
@@ -333,7 +366,34 @@ export default function GlassSlipperApp() {
     }, 200);
   }, []);
 
-  // Category update handler
+  // Add contact manually
+  const addContact = () => {
+    if (!contactForm.name || !contactForm.company || !contactForm.position) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const newContact = {
+      id: Date.now(),
+      ...contactForm,
+      category: 'Uncategorised',
+      isEnriched: false
+    };
+
+    setContacts(prev => [...prev, newContact]);
+    setContactForm({
+      name: '',
+      company: '',
+      position: '',
+      phone: '',
+      linkedinProfile: ''
+    });
+    setShowAddContactModal(false);
+    setSuccessMessage('Contact added successfully!');
+    setShowSuccessModal(true);
+  };
+
+  // Update contact category
   const updateCategory = (contactId, newCategory) => {
     setContacts(prev => 
       prev.map(contact => 
@@ -344,7 +404,7 @@ export default function GlassSlipperApp() {
     );
   };
 
-  // Contact enrichment handler
+  // Enrich single contact
   const enrichContact = async (contactId) => {
     if (enrichmentsLeft <= 0) {
       alert('No enrichments left. Please upgrade your plan.');
@@ -356,89 +416,242 @@ export default function GlassSlipperApp() {
 
     setLoadingMessage(`Enriching ${contact.name}'s profile...`);
     setShowLoadingModal(true);
-
-    // Simulate enrichment process
+    
+    // Simulate enrichment - in real app this would call Apollo API
     setTimeout(() => {
-      const industries = ['Technology', 'Finance', 'Healthcare', 'Retail', 'Manufacturing', 'Education'];
-      const technologies = [
-        ['React', 'Node.js', 'AWS', 'Python'],
-        ['Salesforce', 'HubSpot', 'Tableau'],
-        ['Azure', 'Docker', 'Kubernetes'],
-        ['Java', 'Spring', 'Oracle'],
-        ['SAP', 'Microsoft 365', 'Power BI']
-      ];
-
-      const enrichmentData = {
-        website: `https://${contact.company.toLowerCase().replace(/\s+/g, '')}.com`,
-        employees: ['10-50', '50-200', '200-500', '500-1000'][Math.floor(Math.random() * 4)],
-        industry: industries[Math.floor(Math.random() * industries.length)],
-        revenue: ['$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M'][Math.floor(Math.random() * 4)],
-        technologies: technologies[Math.floor(Math.random() * technologies.length)],
-        decisionMakers: Math.floor(Math.random() * 5) + 1,
-        recentActivity: [
-          'Posted about digital transformation',
-          'Hiring for senior positions',
-          'Launched new product line',
-          'Expanded to new markets',
-          'Raised funding round'
-        ][Math.floor(Math.random() * 5)]
-      };
-
-      setContacts(prev =>
-        prev.map(c =>
-          c.id === contactId
-            ? { ...c, isEnriched: true, enrichmentData }
-            : c
-        )
-      );
-
+      setContacts(prev => prev.map(c => 
+        c.id === contactId
+          ? { 
+              ...c, 
+              isEnriched: true,
+              enrichmentData: {
+                industry: 'Technology - Software Development',
+                location: 'London, UK',
+                website: 'https://example.com',
+                linkedinProfile: 'https://linkedin.com/in/example'
+              }
+            }
+          : c
+      ));
+      
       setEnrichmentsLeft(prev => prev - 1);
       setShowLoadingModal(false);
-      setSuccessMessage(`Successfully enriched ${contact.name}'s profile!`);
-      setTimeout(() => setSuccessMessage(''), 3000);
+      setSuccessMessage('Contact enriched successfully!');
+      setShowSuccessModal(true);
     }, 2000);
   };
 
-  // Generate strategy with AI
-  const generateAIStrategy = async () => {
-    if (!strategy.oneOffer) {
-      alert('Please fill in your one offer first');
+  // Enrich all ideal clients
+  const enrichIdealClients = async () => {
+    const idealClients = contacts.filter(c => c.category === 'Ideal Client' && !c.isEnriched).slice(0, 50);
+    
+    if (idealClients.length === 0) {
+      alert('No ideal clients to enrich');
       return;
     }
 
-    setLoadingMessage('Generating your personalized strategy...');
+    if (enrichmentsLeft < idealClients.length) {
+      alert(`Not enough enrichments left. You have ${enrichmentsLeft} left but need ${idealClients.length}`);
+      return;
+    }
+
+    setLoadingMessage(`Enriching ${idealClients.length} ideal clients...`);
     setShowLoadingModal(true);
+    
+    // Simulate batch enrichment
+    setTimeout(() => {
+      setContacts(prev => prev.map(contact => 
+        idealClients.some(ic => ic.id === contact.id)
+          ? { 
+              ...contact, 
+              isEnriched: true,
+              enrichmentData: {
+                industry: 'Various Industries',
+                location: 'UK',
+                website: 'https://example.com',
+                linkedinProfile: 'https://linkedin.com/in/example'
+              }
+            }
+          : contact
+      ));
+      
+      setEnrichmentsLeft(prev => prev - idealClients.length);
+      setShowLoadingModal(false);
+      setSuccessMessage(`Successfully enriched ${idealClients.length} ideal clients!`);
+      setShowSuccessModal(true);
+    }, 3000);
+  };
 
+  // AI Categorization helper
+  const categorizeContact = (contact) => {
+    const { targetMarket, referralPartners, businessType } = user;
+    
+    if (!targetMarket) return 'Other';
+    
+    const industry = (contact.enrichmentData?.industry || contact.position || '').toLowerCase();
+    const company = (contact.company || '').toLowerCase();
+    const position = (contact.position || '').toLowerCase();
+    
+    // Normalize target market for better matching
+    const normalizedTargetMarket = targetMarket.toLowerCase();
+    const normalizedReferralPartners = (referralPartners || '').toLowerCase();
+    const normalizedBusinessType = (businessType || '').toLowerCase();
+    
+    // Enhanced matching logic with industry hierarchies and synonyms
+    const industryMatches = {
+      'professional services': ['consulting', 'advisory', 'legal', 'accounting', 'audit', 'tax', 'hr', 'human resources', 'recruitment', 'marketing', 'advertising', 'pr', 'communications', 'it', 'technology', 'software', 'finance', 'financial', 'wealth', 'investment', 'banking', 'insurance', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency'],
+      'finance': ['financial', 'wealth', 'investment', 'banking', 'fund', 'capital', 'money', 'treasury', 'insurance', 'pension', 'mortgage'],
+      'tech': ['technology', 'software', 'it', 'digital', 'data', 'cloud', 'cyber', 'ai', 'automation', 'saas', 'platform'],
+      'healthcare': ['health', 'medical', 'clinical', 'pharmaceutical', 'hospital', 'therapy', 'wellness', 'biotech'],
+      'marketing': ['marketing', 'advertising', 'digital', 'social', 'media', 'content', 'brand', 'pr', 'communications', 'creative']
+    };
+    
+    // Function to check if text matches target or referral partners
+    const isMatchingIndustry = (text, target) => {
+      if (text.includes(target)) return true;
+      
+      // Check synonyms
+      for (const [key, synonyms] of Object.entries(industryMatches)) {
+        if (target.includes(key) || synonyms.some(syn => target.includes(syn))) {
+          return synonyms.some(syn => text.includes(syn)) || text.includes(key);
+        }
+      }
+      
+      // Check if target words appear in text
+      const targetWords = target.split(' ');
+      return targetWords.some(word => word.length > 2 && text.includes(word));
+    };
+    
+    // Check for ideal client match
+    if (isMatchingIndustry(industry, normalizedTargetMarket) || 
+        isMatchingIndustry(company, normalizedTargetMarket) ||
+        isMatchingIndustry(position, normalizedTargetMarket)) {
+      return 'Ideal Client';
+    }
+    
+    // Check for referral partner match
+    if (normalizedReferralPartners && 
+        (isMatchingIndustry(industry, normalizedReferralPartners) || 
+         isMatchingIndustry(company, normalizedReferralPartners) ||
+         isMatchingIndustry(position, normalizedReferralPartners))) {
+      return 'Referral Partners';
+    }
+    
+    // Check for competitor match (similar to user's business type)
+    if (normalizedBusinessType && 
+        (isMatchingIndustry(industry, normalizedBusinessType) || 
+         isMatchingIndustry(company, normalizedBusinessType) ||
+         isMatchingIndustry(position, normalizedBusinessType))) {
+      return 'Competitors';
+    }
+    
+    return 'Other';
+  };
+
+  // AI Categorize all contacts
+  const aiCategorizeAll = () => {
+    setLoadingMessage('Categorizing all contacts...');
+    setShowLoadingModal(true);
+    
+    setTimeout(() => {
+      setContacts(prev => prev.map(contact => ({
+        ...contact,
+        category: categorizeContact(contact)
+      })));
+      
+      setShowLoadingModal(false);
+      setSuccessMessage('All contacts categorized successfully!');
+      setShowSuccessModal(true);
+      
+      // Mark task as complete
+      setTasks(prev => prev.map(task => 
+        task.id === 3 ? { ...task, completed: true } : task
+      ));
+    }, 1500);
+  };
+
+  // Generate strategy with real AI
+  const generateStrategy = async () => {
+    if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
+      alert('Please fill in all strategy fields first');
+      return;
+    }
+
+    setLoadingMessage('Generating your LinkedIn strategy...');
+    setShowLoadingModal(true);
+    
     try {
-      // In a real app, this would call your AI API
-      // For demo, we'll simulate with a timeout
-      setTimeout(() => {
-        const generatedStrategy = `Based on your focus on "${strategy.oneOffer}" for ${user.targetMarket}, here's your LinkedIn strategy:
+      // Create comprehensive prompt based on LinkedIn Formula
+      const prompt = `You are an expert LinkedIn strategist implementing Adam Jones' LinkedIn Formula methodology. 
 
-1. **Profile Optimization**: Position yourself as the go-to expert for ${strategy.oneOffer} in the ${user.targetMarket} industry.
+User's Business Details:
+- One Offer: ${strategy.oneOffer}
+- Ideal Referral Partners: ${strategy.idealReferralPartners}
+- What Makes Them Special: ${strategy.specialFactors}
+- Business Type: ${user.businessType}
+- Target Market: ${user.targetMarket}
+- Writing Style: ${user.writingStyle}
 
-2. **Content Strategy**: Share weekly insights about ${strategy.oneOffer}, focusing on problems specific to ${user.targetMarket}.
+Based on Adam Jones' LinkedIn Formula 10-step process:
+1. Define your one offer ✓
+2. Create your value proposition
+3. Build your Ideal Customer Profile
+4. Do some customer interviews
+5. Discover your style ✓
+6. Shoot some content
+7. Write your profile
+8. Build the strategy
+9. Start implementing it
+10. Constantly review
 
-3. **Connection Strategy**: Connect with 20 ${user.targetMarket} decision-makers weekly who could benefit from ${strategy.oneOffer}.
+Key principles from the LinkedIn Formula:
+- Focus on ONE thing to be known for
+- Your profile is a landing page
+- Content funnel: 3x Awareness, 2x Interest, 1x Decision, 1x Action
+- Content types: Education, Storytelling, Personal, Expertise, Sales
+- Success requires strategic preparation - 8 of 10 steps happen before posting
+- Stop selling, start helping
+- Content strategy: Case Study → Advice → Personal → Sales → Testimonial
 
-4. **Engagement Strategy**: Comment on posts from ${user.targetMarket} leaders, adding value related to ${strategy.oneOffer}.
+Create a comprehensive LinkedIn strategy that includes:
 
-5. **Referral Partner Strategy**: Build relationships with ${strategy.idealReferralPartners || 'complementary service providers'} who serve ${user.targetMarket}.
+1. **Value Proposition** (following Adam's 3-part formula: What you provide + Who you provide it to + What makes you unique)
 
-${strategy.specialFactors ? `\n6. **Unique Positioning**: Leverage your ${strategy.specialFactors} to stand out in the ${user.targetMarket} space.` : ''}`;
+2. **Ideal Customer Profile** (detailed description of who will buy from them)
 
-        setStrategy(prev => ({ ...prev, generatedStrategy }));
-        setShowLoadingModal(false);
-        setSuccessMessage('Strategy generated successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }, 3000);
+3. **Content Strategy** (specific content calendar following the funnel approach)
+
+4. **Profile Optimization** (headline, about section, call-to-action)
+
+5. **Engagement Strategy** (how to find and engage with ideal clients)
+
+6. **Pain Points** (specific problems their ideal clients face)
+
+7. **Implementation Plan** (step-by-step next actions)
+
+8. **Messaging Framework** (how to start conversations that lead to business)
+
+Make this strategy actionable, specific, and based on proven LinkedIn Formula principles. Write in a straightforward, conversational tone that values radical candour. Include specific examples and avoid generic advice.`;
+
+      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 4000);
+      
+      setStrategy(prev => ({ ...prev, generatedStrategy: response }));
+      setShowLoadingModal(false);
+      setSuccessMessage('Strategy generated successfully!');
+      setShowSuccessModal(true);
+      
+      // Mark task as complete
+      setTasks(prev => prev.map(task => 
+        task.id === 4 ? { ...task, completed: true } : task
+      ));
     } catch (error) {
+      console.error('Strategy generation failed:', error);
       setShowLoadingModal(false);
       alert('Failed to generate strategy. Please try again.');
     }
   };
 
-  // Lead magnet generation with real AI
+  // Generate lead magnet with real AI
   const generateLeadMagnet = async (contactId) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
@@ -519,114 +732,18 @@ Start with the chosen format and make it incredibly valuable for their specific 
       
       setShowLoadingModal(false);
       setShowLeadMagnetModal(true);
+      
+      // Mark task as complete if first lead magnet
+      if (leadMagnets.length === 0) {
+        setTasks(prev => prev.map(task => 
+          task.id === 5 ? { ...task, completed: true } : task
+        ));
+      }
     } catch (error) {
       console.error('Lead magnet generation failed:', error);
       setShowLoadingModal(false);
       alert('Failed to generate lead magnet. Please try again.');
     }
-  };
-
-  // Filtered contacts based on search and category
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.company.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || contact.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Auto-categorization logic
-  const autoCategorizeContacts = () => {
-    setLoadingMessage('Auto-categorizing contacts...');
-    setShowLoadingModal(true);
-
-    setTimeout(() => {
-      const targetIndustries = {
-        'finance': ['bank', 'investment', 'financial', 'capital', 'wealth', 'insurance', 'accounting', 'audit', 'tax', 'money', 'fund', 'asset', 'pension', 'mortgage', 'loan', 'treasury', 'risk', 'compliance', 'fintech'],
-        'marketing': ['advertising', 'digital', 'social media', 'seo', 'ppc', 'content', 'brand', 'pr', 'communications', 'media', 'creative', 'campaign', 'growth', 'acquisition', 'engagement', 'analytics'],
-        'tech': ['technology', 'software', 'IT', 'development', 'programming', 'data', 'analytics', 'cloud', 'cybersecurity', 'ai', 'automation', 'saas', 'platform', 'infrastructure', 'devops'],
-        'consulting': ['advisory', 'consultant', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency', 'change', 'process', 'improvement', 'optimization'],
-        'healthcare': ['medical', 'health', 'pharmaceutical', 'clinical', 'hospital', 'doctor', 'nurse', 'therapy', 'wellness', 'biotech', 'diagnostics', 'treatment'],
-        'education': ['training', 'learning', 'academic', 'university', 'school', 'teaching', 'course', 'certification', 'elearning', 'coaching', 'development'],
-        'retail': ['ecommerce', 'shopping', 'commerce', 'sales', 'store', 'merchandise', 'consumer', 'customer', 'marketplace', 'distribution'],
-        'manufacturing': ['production', 'industrial', 'factory', 'supply', 'logistics', 'operations', 'quality', 'assembly', 'fabrication', 'processing'],
-        'legal': ['law', 'attorney', 'lawyer', 'solicitor', 'barrister', 'litigation', 'contracts', 'compliance', 'regulatory', 'intellectual property'],
-        'hr': ['human resources', 'recruitment', 'staffing', 'talent', 'workforce', 'payroll', 'benefits', 'training', 'development', 'culture']
-      };
-      
-      // Function to check if text matches target market or its synonyms
-      const isMatchingIndustry = (text, target) => {
-        // Direct match
-        if (text.includes(target.toLowerCase())) return true;
-        
-        // Check industry synonyms
-        for (const [industry, keywords] of Object.entries(targetIndustries)) {
-          if (industry === target.toLowerCase() || target.toLowerCase().includes(industry)) {
-            return keywords.some(keyword => text.includes(keyword));
-          }
-        }
-        
-        // Check if any keyword group matches both the text and target
-        for (const keywords of Object.values(targetIndustries)) {
-          const textMatches = keywords.some(keyword => text.includes(keyword));
-          const targetMatches = keywords.some(keyword => target.toLowerCase().includes(keyword));
-          if (textMatches && targetMatches) return true;
-        }
-        
-        return false;
-      };
-
-      // Function to check if position indicates decision maker
-      const isDecisionMaker = (position) => {
-        const decisionMakerTitles = ['ceo', 'cfo', 'cto', 'coo', 'cmo', 'founder', 'owner', 'president', 'director', 'head', 'vp', 'vice president', 'partner', 'managing', 'chief', 'executive'];
-        return decisionMakerTitles.some(title => position.includes(title));
-      };
-
-      const referralKeywords = ['coach', 'consultant', 'advisor', 'accountant', 'lawyer', 'attorney', 'broker', 'agent'];
-      const supplierKeywords = ['vendor', 'supplier', 'provider', 'software', 'solutions', 'services', 'tools', 'platform'];
-
-      setContacts(prev => prev.map(contact => {
-        if (contact.category !== 'Uncategorised') return contact;
-
-        const lowerCompany = contact.company.toLowerCase();
-        const lowerPosition = contact.position.toLowerCase();
-        const targetMarketLower = user.targetMarket.toLowerCase();
-
-        // Check for ideal client match
-        const matchesTargetMarket = isMatchingIndustry(lowerCompany, targetMarketLower) || 
-                                  isMatchingIndustry(lowerPosition, targetMarketLower);
-        
-        const hasDecisionMakingRole = isDecisionMaker(lowerPosition);
-
-        if (matchesTargetMarket && hasDecisionMakingRole) {
-          return { ...contact, category: 'Ideal Client' };
-        }
-
-        // Check for referral partners
-        const isReferralPartner = referralKeywords.some(keyword => 
-          lowerPosition.includes(keyword) || lowerCompany.includes(keyword)
-        );
-
-        if (isReferralPartner) {
-          return { ...contact, category: 'Referral Partners' };
-        }
-
-        // Check for suppliers
-        const isSupplier = supplierKeywords.some(keyword => 
-          lowerCompany.includes(keyword) || lowerPosition.includes(keyword)
-        );
-
-        if (isSupplier) {
-          return { ...contact, category: 'Suppliers' };
-        }
-
-        // Default to Other if no match
-        return { ...contact, category: 'Other' };
-      }));
-
-      setShowLoadingModal(false);
-      setSuccessMessage('Contacts categorized successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    }, 2000);
   };
 
   // Stats calculations
@@ -635,8 +752,15 @@ Start with the chosen format and make it incredibly valuable for their specific 
   const enrichedContacts = contacts.filter(c => c.isEnriched).length;
   const referralPartners = contacts.filter(c => c.category === 'Referral Partners').length;
 
-  // Top 5 tasks
-  const topTasks = tasks.filter(t => !t.completed).slice(0, 5);
+  // Mobile menu items
+  const navigationItems = [
+    { view: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { view: 'contacts', label: 'Contacts', icon: Users },
+    { view: 'strategy', label: 'Strategy', icon: Target },
+    { view: 'lead-magnets', label: 'Lead Magnets', icon: FileText },
+    { view: 'tasks', label: 'Tasks', icon: CheckCircle },
+    { view: 'settings', label: 'Settings', icon: Settings }
+  ];
 
   if (!isAuthenticated) {
     return (
@@ -662,11 +786,11 @@ Start with the chosen format and make it incredibly valuable for their specific 
                     <span className="text-white">Bank-level security</span>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <Globe className="w-6 h-6 text-blue-400" />
+                    <Sparkles className="w-6 h-6 text-blue-400" />
                     <span className="text-white">50+ enrichments included</span>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <Award className="w-6 h-6 text-yellow-400" />
+                    <Target className="w-6 h-6 text-yellow-400" />
                     <span className="text-white">Proven ABM methodology</span>
                   </div>
                 </div>
@@ -726,13 +850,22 @@ Start with the chosen format and make it incredibly valuable for their specific 
                 </div>
                 <div>
                   <label className="block text-white text-opacity-70 mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
+                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-70 hover:text-opacity-100"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={handleAuth}
@@ -793,23 +926,41 @@ Start with the chosen format and make it incredibly valuable for their specific 
                 </div>
                 <div>
                   <label className="block text-white text-opacity-70 mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
+                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-70 hover:text-opacity-100"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-white text-opacity-70 mb-2">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={authForm.confirmPassword}
-                    onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={authForm.confirmPassword}
+                      onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
+                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-70 hover:text-opacity-100"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={handleAuth}
@@ -834,25 +985,6 @@ Start with the chosen format and make it incredibly valuable for their specific 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900">
-      {/* Success Message */}
-      {successMessage && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
-          {successMessage}
-        </div>
-      )}
-
-      {/* Loading Modal */}
-      {showLoadingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-sm w-full">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-              <p className="text-gray-700 text-center">{loadingMessage}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <header className="bg-purple-900 bg-opacity-50 backdrop-blur border-b border-purple-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -865,64 +997,75 @@ Start with the chosen format and make it incredibly valuable for their specific 
                 <h1 className="text-xl font-bold text-white">Glass Slipper</h1>
               </div>
               
+              {/* Desktop Navigation */}
               <nav className="hidden md:flex space-x-6">
-                <button
-                  onClick={() => setCurrentView('dashboard')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'dashboard' ? 'text-yellow-400' : ''}`}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setCurrentView('contacts')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'contacts' ? 'text-yellow-400' : ''}`}
-                >
-                  Contacts
-                </button>
-                <button
-                  onClick={() => setCurrentView('strategy')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'strategy' ? 'text-yellow-400' : ''}`}
-                >
-                  Strategy
-                </button>
-                <button
-                  onClick={() => setCurrentView('leadMagnets')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'leadMagnets' ? 'text-yellow-400' : ''}`}
-                >
-                  Lead Magnets
-                </button>
-                <button
-                  onClick={() => setCurrentView('tasks')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'tasks' ? 'text-yellow-400' : ''}`}
-                >
-                  Tasks
-                </button>
-                <button
-                  onClick={() => setCurrentView('profile')}
-                  className={`text-white hover:text-yellow-400 transition-colors ${currentView === 'profile' ? 'text-yellow-400' : ''}`}
-                >
-                  Profile
-                </button>
+                {navigationItems.map(item => (
+                  <button
+                    key={item.view}
+                    onClick={() => setCurrentView(item.view)}
+                    className={`text-white hover:text-yellow-400 transition-colors ${
+                      currentView === item.view ? 'text-yellow-400' : ''
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </nav>
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-white text-sm">{user.name}</p>
-                <p className="text-white text-opacity-70 text-xs">{user.company}</p>
+              <div className="text-right hidden md:block">
+                <p className="text-white text-sm">{user.name || currentUser.name}</p>
+                <p className="text-white text-opacity-70 text-xs">{user.company || currentUser.company}</p>
               </div>
               <button
                 onClick={handleLogout}
                 className="text-white hover:text-yellow-400 transition-colors"
               >
-                Sign Out
+                <LogOut className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden text-white"
+              >
+                <Menu className="w-6 h-6" />
               </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {showMobileMenu && (
+          <div className="md:hidden bg-purple-800 bg-opacity-90 border-t border-purple-700">
+            <nav className="px-4 py-3 space-y-2">
+              {navigationItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.view}
+                    onClick={() => {
+                      setCurrentView(item.view);
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center space-x-3 ${
+                      currentView === item.view
+                        ? 'bg-purple-700 text-yellow-400'
+                        : 'text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Dashboard View */}
         {currentView === 'dashboard' && (
           <div className="space-y-8">
             {/* Stats Grid */}
@@ -968,104 +1111,123 @@ Start with the chosen format and make it incredibly valuable for their specific 
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setCurrentView('contacts')}
-                    className="w-full text-left px-4 py-3 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg transition-all flex items-center justify-between group"
-                  >
-                    <span className="text-white">Upload LinkedIn Connections</span>
-                    <Upload className="w-5 h-5 text-yellow-400 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('strategy')}
-                    className="w-full text-left px-4 py-3 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg transition-all flex items-center justify-between group"
-                  >
-                    <span className="text-white">Create Your Strategy</span>
-                    <Target className="w-5 h-5 text-yellow-400 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('leadMagnets')}
-                    className="w-full text-left px-4 py-3 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg transition-all flex items-center justify-between group"
-                  >
-                    <span className="text-white">Generate Lead Magnets</span>
-                    <BookOpen className="w-5 h-5 text-yellow-400 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Top Tasks</h2>
-                <div className="space-y-3">
-                  {topTasks.map(task => (
-                    <div key={task.id} className="flex items-center justify-between">
-                      <span className="text-white text-opacity-90">{task.text}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        task.priority === 'high' ? 'bg-red-500 text-white' :
-                        task.priority === 'medium' ? 'bg-yellow-500 text-white' :
-                        'bg-green-500 text-white'
-                      }`}>
-                        {task.priority}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {/* Onboarding Tasks */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Getting Started</h2>
+              <div className="space-y-3">
+                {tasks.map(task => (
+                  <div key={task.id} className="flex items-center space-x-3">
+                    <button
+                      onClick={() => {
+                        setTasks(prev => prev.map(t => 
+                          t.id === task.id ? { ...t, completed: !t.completed } : t
+                        ));
+                      }}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                        task.completed 
+                          ? 'bg-green-500 border-green-500' 
+                          : 'border-white border-opacity-50 hover:border-yellow-400'
+                      }`}
+                    >
+                      {task.completed && <Check className="w-3 h-3 text-white" />}
+                    </button>
+                    <span className={`text-white ${task.completed ? 'line-through opacity-50' : ''}`}>
+                      {task.text}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      task.priority === 'high' ? 'bg-red-500 text-white' :
+                      task.priority === 'medium' ? 'bg-yellow-500 text-white' :
+                      'bg-green-500 text-white'
+                    }`}>
+                      {task.priority}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Activity Feed */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Recent Activity</h2>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-white text-opacity-90">Connected with Emily Chen from TechStart Inc</span>
-                  <span className="text-white text-opacity-50 text-sm">2 hours ago</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-white text-opacity-90">Enriched 5 new contacts</span>
-                  <span className="text-white text-opacity-50 text-sm">5 hours ago</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                  <span className="text-white text-opacity-90">Generated lead magnet for Michael Brown</span>
-                  <span className="text-white text-opacity-50 text-sm">1 day ago</span>
-                </div>
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Upload Contacts</h3>
+                <p className="text-white text-opacity-70 mb-4">
+                  Import your LinkedIn connections to get started
+                </p>
+                <label className="block">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span>Upload CSV</span>
+                  </button>
+                </label>
+              </div>
+
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Build Strategy</h3>
+                <p className="text-white text-opacity-70 mb-4">
+                  Generate your personalized LinkedIn strategy
+                </p>
+                <button
+                  onClick={() => setCurrentView('strategy')}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
+                >
+                  <Target className="w-5 h-5" />
+                  <span>Create Strategy</span>
+                </button>
+              </div>
+
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Configure Settings</h3>
+                <p className="text-white text-opacity-70 mb-4">
+                  Set up your business profile for better AI results
+                </p>
+                <button
+                  onClick={() => setCurrentView('settings')}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
+                >
+                  <Settings className="w-5 h-5" />
+                  <span>Configure Settings</span>
+                </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* Contacts View */}
         {currentView === 'contacts' && (
           <div className="space-y-6">
-            {/* Header with Upload and Filters */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-2xl font-bold text-white">Contacts</h2>
-              <div className="flex flex-wrap gap-3">
-                <label className="relative cursor-pointer bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all transform hover:scale-105">
-                  <input
-                    type="file"
-                    className="sr-only"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                  />
-                  <span className="flex items-center space-x-2">
-                    <Upload className="w-4 h-4" />
-                    <span>Upload CSV</span>
-                  </span>
-                </label>
-                
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold text-white">Contacts</h1>
+              <div className="flex items-center space-x-4">
                 <button
-                  onClick={autoCategorizeContacts}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-all flex items-center space-x-2"
+                  onClick={enrichIdealClients}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Auto-Categorize</span>
+                  <Zap className="w-4 h-4" />
+                  <span>Enrich Ideal Clients</span>
+                </button>
+                <button
+                  onClick={aiCategorizeAll}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                >
+                  <Target className="w-4 h-4" />
+                  <span>AI Categorize All</span>
+                </button>
+                <button
+                  onClick={() => setShowAddContactModal(true)}
+                  className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Contact</span>
                 </button>
               </div>
             </div>
@@ -1086,36 +1248,6 @@ Start with the chosen format and make it incredibly valuable for their specific 
               </div>
             )}
 
-            {/* Search and Filter */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search contacts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white bg-opacity-10 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Filter className="text-white text-opacity-70 w-5 h-5" />
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="bg-white bg-opacity-10 text-white px-4 py-2 rounded-lg focus:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                >
-                  <option value="all">All Categories</option>
-                  <option value="Ideal Client">Ideal Clients</option>
-                  <option value="Referral Partners">Referral Partners</option>
-                  <option value="Suppliers">Suppliers</option>
-                  <option value="Other">Other</option>
-                  <option value="Uncategorised">Uncategorised</option>
-                </select>
-              </div>
-            </div>
-
             {/* Enrichments Left */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -1129,16 +1261,16 @@ Start with the chosen format and make it incredibly valuable for their specific 
 
             {/* Contacts List */}
             <div className="space-y-4">
-              {filteredContacts.length === 0 ? (
+              {contacts.length === 0 ? (
                 <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
                   <Users className="w-12 h-12 text-white text-opacity-50 mx-auto mb-4" />
-                  <p className="text-white text-opacity-70">No contacts found</p>
+                  <p className="text-white text-opacity-70">No contacts yet</p>
                   <p className="text-white text-opacity-50 text-sm mt-2">
                     Upload your LinkedIn connections CSV to get started
                   </p>
                 </div>
               ) : (
-                filteredContacts.map(contact => (
+                contacts.map(contact => (
                   <div key={contact.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -1151,7 +1283,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                           <h3 className="text-white font-semibold">{contact.name}</h3>
                           <p className="text-white text-opacity-70 text-sm">{contact.position} at {contact.company}</p>
                           <div className="flex items-center space-x-4 mt-1">
-                            {contact.phone !== 'Not found' && (
+                            {contact.phone !== 'Not found' && contact.phone !== 'Search failed' && (
                               <span className="text-white text-opacity-50 text-xs flex items-center space-x-1">
                                 <Phone className="w-3 h-3" />
                                 <span>{contact.phone}</span>
@@ -1176,7 +1308,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                           <option value="Uncategorised">Uncategorised</option>
                           <option value="Ideal Client">Ideal Client</option>
                           <option value="Referral Partners">Referral Partners</option>
-                          <option value="Suppliers">Suppliers</option>
+                          <option value="Competitors">Competitors</option>
                           <option value="Other">Other</option>
                         </select>
                         
@@ -1186,7 +1318,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                             className="text-yellow-400 hover:text-yellow-300 transition-colors"
                             title="Enrich contact"
                           >
-                            <RefreshCw className="w-5 h-5" />
+                            <Sparkles className="w-5 h-5" />
                           </button>
                         )}
                         
@@ -1198,7 +1330,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                           className="text-white hover:text-yellow-400 transition-colors"
                           title="View details"
                         >
-                          <ChevronRight className="w-5 h-5" />
+                          <ArrowRight className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -1209,13 +1341,14 @@ Start with the chosen format and make it incredibly valuable for their specific 
           </div>
         )}
 
+        {/* Strategy View */}
         {currentView === 'strategy' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Your LinkedIn Strategy</h2>
+            <h1 className="text-3xl font-bold text-white">LinkedIn Strategy</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Strategy Builder</h3>
+                <h2 className="text-xl font-semibold text-white mb-4">Strategy Builder</h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-white text-opacity-70 mb-2">
@@ -1232,7 +1365,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   
                   <div>
                     <label className="block text-white text-opacity-70 mb-2">
-                      Who are your ideal referral partners?
+                      Who are your ideal referral partners? <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -1245,7 +1378,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   
                   <div>
                     <label className="block text-white text-opacity-70 mb-2">
-                      What makes you special?
+                      What makes you special? <span className="text-red-400">*</span>
                     </label>
                     <textarea
                       value={strategy.specialFactors}
@@ -1257,8 +1390,8 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   </div>
                   
                   <button
-                    onClick={generateAIStrategy}
-                    disabled={!strategy.oneOffer}
+                    onClick={generateStrategy}
+                    disabled={!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors}
                     className="w-full py-3 bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 font-semibold rounded-lg hover:from-yellow-500 hover:to-yellow-600 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
                   >
                     <Sparkles className="w-5 h-5" />
@@ -1268,7 +1401,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
               </div>
               
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Your Generated Strategy</h3>
+                <h2 className="text-xl font-semibold text-white mb-4">Your Generated Strategy</h2>
                 {strategy.generatedStrategy ? (
                   <div className="text-white text-opacity-90 whitespace-pre-wrap">
                     {strategy.generatedStrategy}
@@ -1286,62 +1419,74 @@ Start with the chosen format and make it incredibly valuable for their specific 
           </div>
         )}
 
-        {currentView === 'leadMagnets' && (
+        {/* Lead Magnets View */}
+        {currentView === 'lead-magnets' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-white">Lead Magnets</h2>
+              <h1 className="text-3xl font-bold text-white">Lead Magnets</h1>
               <button className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all">
                 <Plus className="w-5 h-5 inline mr-2" />
                 Create New
               </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {leadMagnets.map(magnet => (
-                <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all">
-                  <h3 className="text-white font-semibold mb-2">{magnet.title}</h3>
-                  <p className="text-white text-opacity-70 text-sm mb-4">{magnet.description}</p>
-                  {magnet.isPersonalized && (
-                    <div className="mb-4">
-                      <span className="text-yellow-400 text-xs flex items-center space-x-1">
-                        <Star className="w-3 h-3" />
-                        <span>Personalized for {magnet.contactName}</span>
+            {leadMagnets.length === 0 ? (
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+                <FileText className="w-12 h-12 text-white text-opacity-50 mx-auto mb-4" />
+                <p className="text-white text-opacity-70">No lead magnets created yet</p>
+                <p className="text-white text-opacity-50 text-sm mt-2">
+                  Generate personalized lead magnets from your contacts
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {leadMagnets.map(magnet => (
+                  <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all">
+                    <h3 className="text-white font-semibold mb-2">{magnet.title}</h3>
+                    <p className="text-white text-opacity-70 text-sm mb-4">{magnet.description}</p>
+                    {magnet.isPersonalized && (
+                      <div className="mb-4">
+                        <span className="text-yellow-400 text-xs flex items-center space-x-1">
+                          <Star className="w-3 h-3" />
+                          <span>Personalized for {magnet.contactName}</span>
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-white text-opacity-50 text-xs">
+                        {new Date(magnet.createdAt).toLocaleDateString()}
                       </span>
+                      <button
+                        onClick={() => {
+                          setSelectedLeadMagnet(magnet);
+                          setShowLeadMagnetModal(true);
+                        }}
+                        className="text-yellow-400 hover:text-yellow-300 transition-colors text-sm"
+                      >
+                        View →
+                      </button>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-white text-opacity-50 text-xs">
-                      {new Date(magnet.createdAt).toLocaleDateString()}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setSelectedLeadMagnet(magnet);
-                        setShowLeadMagnetModal(true);
-                      }}
-                      className="text-yellow-400 hover:text-yellow-300 transition-colors text-sm"
-                    >
-                      View →
-                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
+        {/* CHANGE 2: Tasks View */}
         {currentView === 'tasks' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Tasks</h2>
+            <h1 className="text-3xl font-bold text-white">Tasks</h1>
             
             {/* Daily Tasks Section */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
                 <Calendar className="w-5 h-5 text-yellow-400" />
                 <span>Daily Tasks</span>
                 <span className="text-sm text-white text-opacity-50">
                   ({new Date().toLocaleDateString()})
                 </span>
-              </h3>
+              </h2>
               
               <div className="space-y-3">
                 <div
@@ -1408,10 +1553,10 @@ Start with the chosen format and make it incredibly valuable for their specific 
 
             {/* Contact Specific Tasks Section */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
                 <Users className="w-5 h-5 text-yellow-400" />
                 <span>Contact Specific Tasks</span>
-              </h3>
+              </h2>
               
               {taskListClients.length === 0 ? (
                 <div className="text-center py-8">
@@ -1434,7 +1579,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                       <div key={client.id} className="border-l-2 border-purple-600 pl-4">
                         <div className="flex items-center justify-between mb-3">
                           <div>
-                            <h4 className="text-white font-medium">{client.name}</h4>
+                            <h3 className="text-white font-medium">{client.name}</h3>
                             <p className="text-white text-opacity-50 text-sm">
                               {client.position} at {client.company}
                             </p>
@@ -1559,18 +1704,19 @@ Start with the chosen format and make it incredibly valuable for their specific 
           </div>
         )}
 
-        {currentView === 'profile' && (
+        {/* Settings View */}
+        {currentView === 'settings' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Business Profile</h2>
+            <h1 className="text-3xl font-bold text-white">Settings</h1>
             
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Your Information</h3>
+              <h2 className="text-xl font-semibold text-white mb-4">Business Profile</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-white text-opacity-70 mb-2">Name</label>
+                  <label className="block text-white text-opacity-70 mb-2">Your Name</label>
                   <input
                     type="text"
-                    value={user.name}
+                    value={user.name || currentUser.name}
                     onChange={(e) => setUser({...user, name: e.target.value})}
                     className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   />
@@ -1580,7 +1726,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   <label className="block text-white text-opacity-70 mb-2">Company</label>
                   <input
                     type="text"
-                    value={user.company}
+                    value={user.company || currentUser.company}
                     onChange={(e) => setUser({...user, company: e.target.value})}
                     className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   />
@@ -1631,13 +1777,23 @@ Start with the chosen format and make it incredibly valuable for their specific 
                 </div>
               </div>
               
-              <button className="mt-6 bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-6 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all">
-                Save Changes
+              <button
+                onClick={() => {
+                  setSuccessMessage('Settings saved successfully!');
+                  setShowSuccessModal(true);
+                  // Mark settings task as complete
+                  setTasks(prev => prev.map(task => 
+                    task.id === 2 ? { ...task, completed: true } : task
+                  ));
+                }}
+                className="mt-6 bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 px-6 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all"
+              >
+                Save Settings
               </button>
             </div>
             
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Subscription</h3>
+              <h2 className="text-xl font-semibold text-white mb-4">Subscription</h2>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white">Current Plan: <span className="font-semibold">Pro</span></p>
@@ -1652,88 +1808,65 @@ Start with the chosen format and make it incredibly valuable for their specific 
         )}
       </main>
 
-      {/* Contact Modal */}
+      {/* Contact Detail Modal */}
       {showContactModal && selectedContact && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-purple-800 bg-opacity-90 backdrop-blur rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-white">{selectedContact.name}</h3>
-                <button
-                  onClick={() => setShowContactModal(false)}
-                  className="text-white hover:text-yellow-400 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Position</p>
-                    <p className="text-white">{selectedContact.position}</p>
-                  </div>
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Company</p>
-                    <p className="text-white">{selectedContact.company}</p>
-                  </div>
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Phone</p>
-                    <p className="text-white">{selectedContact.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Category</p>
-                    <p className="text-white">{selectedContact.category}</p>
-                  </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowContactModal(false)} />
+          <div className="relative bg-gradient-to-br from-purple-900 to-indigo-900 rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">{selectedContact.name}</h2>
+              <button
+                onClick={() => setShowContactModal(false)}
+                className="text-white text-opacity-70 hover:text-opacity-100"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-white text-opacity-70 text-sm">Company</p>
+                  <p className="text-white font-medium">{selectedContact.company}</p>
                 </div>
-                
-                <div className="flex space-x-3">
-                  <a
-                    href={selectedContact.linkedinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all flex items-center justify-center space-x-2"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>View LinkedIn</span>
-                  </a>
-                  <button
-                    onClick={() => generateLeadMagnet(selectedContact.id)}
-                    className="flex-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all flex items-center justify-center space-x-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Generate Lead Magnet</span>
-                  </button>
+                <div>
+                  <p className="text-white text-opacity-70 text-sm">Position</p>
+                  <p className="text-white font-medium">{selectedContact.position}</p>
                 </div>
               </div>
-              
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-white text-opacity-70 text-sm">Category</p>
+                  <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedContact.category === 'Ideal Client' ? 'bg-green-500 text-white' :
+                    selectedContact.category === 'Referral Partners' ? 'bg-blue-500 text-white' :
+                    selectedContact.category === 'Competitors' ? 'bg-red-500 text-white' :
+                    selectedContact.category === 'Other' ? 'bg-gray-500 text-white' :
+                    'bg-gray-600 text-gray-300'
+                  }`}>
+                    {selectedContact.category}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white text-opacity-70 text-sm">Status</p>
+                  <p className="text-white font-medium">
+                    {selectedContact.isEnriched ? 'Enriched' : 'Not Enriched'}
+                  </p>
+                </div>
+              </div>
+
               {selectedContact.isEnriched && selectedContact.enrichmentData && (
-                <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg">
-                  <h4 className="text-white font-medium mb-3">Enrichment Data</h4>
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                  <h3 className="text-white font-medium mb-3">Enrichment Data</h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-white text-opacity-70">Industry</p>
                       <p className="text-white">{selectedContact.enrichmentData.industry}</p>
                     </div>
                     <div>
-                      <p className="text-white text-opacity-70">Employees</p>
-                      <p className="text-white">{selectedContact.enrichmentData.employees}</p>
-                    </div>
-                    <div>
-                      <p className="text-white text-opacity-70">Revenue</p>
-                      <p className="text-white">{selectedContact.enrichmentData.revenue}</p>
-                    </div>
-                    <div>
-                      <p className="text-white text-opacity-70">Decision Makers</p>
-                      <p className="text-white">{selectedContact.enrichmentData.decisionMakers}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-white text-opacity-70">Technologies</p>
-                      <p className="text-white">{selectedContact.enrichmentData.technologies.join(', ')}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-white text-opacity-70">Recent Activity</p>
-                      <p className="text-white">{selectedContact.enrichmentData.recentActivity}</p>
+                      <p className="text-white text-opacity-70">Location</p>
+                      <p className="text-white">{selectedContact.enrichmentData.location}</p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-white text-opacity-70">Website</p>
@@ -1830,6 +1963,124 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   )}
                 </div>
               </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => generateLeadMagnet(selectedContact.id)}
+                  className="flex-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-purple-900 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-yellow-600 transition-all flex items-center justify-center space-x-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Generate Lead Magnet</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete ${selectedContact.name}?`)) {
+                      deleteContact(selectedContact.id);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Contact Modal */}
+      {showAddContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowAddContactModal(false)} />
+          <div className="relative bg-gradient-to-br from-purple-900 to-indigo-900 rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Add New Contact</h2>
+              <button
+                onClick={() => setShowAddContactModal(false)}
+                className="text-white text-opacity-70 hover:text-opacity-100"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={contactForm.name}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
+                  placeholder="John Smith"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
+                  Company *
+                </label>
+                <input
+                  type="text"
+                  value={contactForm.company}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, company: e.target.value }))}
+                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
+                  placeholder="Acme Corp"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
+                  Position *
+                </label>
+                <input
+                  type="text"
+                  value={contactForm.position}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, position: e.target.value }))}
+                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
+                  placeholder="CEO"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={contactForm.phone}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
+                  LinkedIn Profile
+                </label>
+                <input
+                  type="url"
+                  value={contactForm.linkedinProfile}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, linkedinProfile: e.target.value }))}
+                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
+                  placeholder="https://linkedin.com/in/johnsmith"
+                />
+              </div>
+
+              <button
+                onClick={addContact}
+                disabled={!contactForm.name || !contactForm.company || !contactForm.position}
+                className={`w-full py-3 rounded-lg font-medium transition-all ${
+                  contactForm.name && contactForm.company && contactForm.position
+                    ? 'bg-yellow-400 hover:bg-yellow-500 text-purple-900'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Add Contact
+              </button>
             </div>
           </div>
         </div>
@@ -1837,57 +2088,58 @@ Start with the chosen format and make it incredibly valuable for their specific 
 
       {/* Lead Magnet Modal */}
       {showLeadMagnetModal && selectedLeadMagnet && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-800">{selectedLeadMagnet.title}</h3>
-                  {selectedLeadMagnet.isPersonalized && (
-                    <p className="text-yellow-600 text-sm mt-1">
-                      Personalized for {selectedLeadMagnet.contactName} at {selectedLeadMagnet.company}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowLeadMagnetModal(false)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowLeadMagnetModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">{selectedLeadMagnet.title}</h2>
+              <button
+                onClick={() => setShowLeadMagnetModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
               <div className="prose max-w-none">
                 <div className="whitespace-pre-wrap text-gray-700">
                   {selectedLeadMagnet.content}
                 </div>
               </div>
-              
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    // In a real app, this would copy to clipboard
-                    alert('Lead magnet copied to clipboard!');
-                  }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all"
-                >
-                  Copy to Clipboard
-                </button>
-                <button
-                  onClick={() => {
-                    // In a real app, this would download the content
-                    alert('Lead magnet downloaded!');
-                  }}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all flex items-center space-x-2"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download</span>
-                </button>
-              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modal */}
+      {showLoadingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black bg-opacity-50" />
+          <div className="relative bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center space-y-4">
+            <Loader className="w-12 h-12 text-purple-600 animate-spin" />
+            <p className="text-lg font-medium text-gray-900">{loadingMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowSuccessModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center space-y-4">
+            <CheckCircle className="w-12 h-12 text-green-500" />
+            <p className="text-lg font-medium text-gray-900">{successMessage}</p>
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-all"
+            >
+              Continue
+            </button>
           </div>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default GlassSlipperApp;
