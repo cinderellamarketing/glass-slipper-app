@@ -240,7 +240,8 @@ const GlassSlipperApp = () => {
 
       } catch (error) {
         setShowLoadingModal(false);
-        alert('Error processing file. Please ensure it\'s a valid CSV file.');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        alert(`Error processing file. Please ensure it's a valid CSV file. ${errorMessage}`);
       }
     };
     reader.readAsText(file);
@@ -299,7 +300,8 @@ const GlassSlipperApp = () => {
     } catch (error) {
       console.error('Enrichment failed:', error);
       setShowLoadingModal(false);
-      alert(`Enrichment failed: ${error.message}. Please check your API configuration.`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Enrichment failed: ${errorMessage}. Please check your API configuration.`);
     }
   };
 
@@ -342,7 +344,8 @@ const GlassSlipperApp = () => {
     } catch (error) {
       console.error('Categorization failed:', error);
       setShowLoadingModal(false);
-      alert(`AI categorization failed: ${error.message}. Please try again.`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`AI categorization failed: ${errorMessage}. Please try again.`);
     }
   };
 
@@ -394,7 +397,8 @@ const GlassSlipperApp = () => {
     } catch (error) {
       console.error('Strategy generation failed:', error);
       setShowLoadingModal(false);
-      alert(`Strategy generation failed: ${error.message}. Please try again.`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Strategy generation failed: ${errorMessage}. Please try again.`);
     }
   };
 
@@ -723,7 +727,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     <input
                       type="email"
                       value={authForm.email}
-                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="Enter your email"
                     />
@@ -737,7 +741,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={authForm.password}
-                      onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
                       className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="Enter your password"
                     />
@@ -786,7 +790,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       <input
                         type="text"
                         value={authForm.name}
-                        onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
                         className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                         placeholder="Your name"
                       />
@@ -800,7 +804,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       <input
                         type="text"
                         value={authForm.company}
-                        onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
                         className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                         placeholder="Your company"
                       />
@@ -815,7 +819,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     <input
                       type="email"
                       value={authForm.email}
-                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="Enter your email"
                     />
@@ -830,7 +834,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={authForm.password}
-                        onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
                         className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                         placeholder="Create password"
                       />
@@ -851,7 +855,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       <input
                         type="password"
                         value={authForm.confirmPassword}
-                        onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                         className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                         placeholder="Confirm password"
                       />
@@ -1730,7 +1734,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <label className="block text-white text-sm font-medium mb-2">Business Type</label>
                   <select
                     value={user.businessType}
-                    onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
                     className="w-full px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   >
                     <option value="Consulting" className="text-black">Consulting</option>
@@ -1747,7 +1751,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <input
                     type="text"
                     value={user.targetMarket}
-                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
                     className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                     placeholder="e.g., B2B SaaS, SME manufacturers"
                   />
@@ -1757,7 +1761,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <label className="block text-white text-sm font-medium mb-2">Writing Style</label>
                   <select
                     value={user.writingStyle}
-                    onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
                     className="w-full px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   >
                     <option value="Professional" className="text-black">Professional</option>
@@ -1772,7 +1776,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <input
                     type="text"
                     value={user.referralPartners}
-                    onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
                     className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                     placeholder="e.g., Accountants, Business Coaches"
                   />
@@ -1847,9 +1851,9 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                 <label className="block text-white text-sm font-medium mb-2">Category</label>
                 <select
                   value={selectedContact.category || 'Uncategorised'}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                     updateCategory(selectedContact.id, e.target.value);
-                    setSelectedContact(prev => ({ ...prev, category: e.target.value }));
+                    setSelectedContact(prev => prev ? ({ ...prev, category: e.target.value }) : null);
                   }}
                   className="w-full px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 >
