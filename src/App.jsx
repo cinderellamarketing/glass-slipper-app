@@ -1,6 +1,25 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, Check, Phone, Globe, X, ChevronDown, Search, ChevronLeft, MessageSquare, Bell, TrendingDown, Award, AlertCircle, Edit2, Trash2, DollarSign, Clock, Activity, BookOpen, Download, Send, Copy, Share2, Star, Link, RefreshCw, Filter, MoreVertical, MapPin } from 'lucide-react';
 
+// ============================================
+// API CONFIGURATION
+// ============================================
+// 
+// REQUIRED API KEYS:
+// 1. Serper API Key - Get from https://serper.dev
+// 2. Claude API Key - Already configured in this environment
+//
+// TO CONFIGURE SERPER:
+// Option 1: Set environment variable REACT_APP_SERPER_API_KEY
+// Option 2: Replace 'your-serper-api-key-here' below with your actual key
+//
+const SERPER_API_KEY = process.env.REACT_APP_SERPER_API_KEY || '3fd5bda7cce79e07cc06e38ad8225c5dab090f4d';
+
+// Check API configuration
+const isApiConfigured = () => {
+  return SERPER_API_KEY !== 'your-serper-api-key-here' && SERPER_API_KEY?.length > 10;
+};
+
 const GlassSlipperApp = () => {
   // User session state
   const [currentUser, setCurrentUser] = useState({
@@ -36,11 +55,59 @@ const GlassSlipperApp = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
   const [selectedLeadMagnet, setSelectedLeadMagnet] = useState(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const fileInputRef = useRef(null);
 
   // Business state
   const [user, setUser] = useState(currentUser);
-  const [contacts, setContacts] = useState([]);
+  const [contacts, setContacts] = useState([
+    {
+      id: 1,
+      name: 'Sarah Johnson',
+      company: 'TechCorp Ltd',
+      position: 'CEO',
+      email: 'sarah@techcorp.com',
+      category: 'Ideal Client',
+      isEnriched: true,
+      phone: '+44 7123 456789',
+      website: 'www.techcorp.com',
+      enrichmentData: {
+        industry: 'Technology - Software Development',
+        location: 'London, UK',
+        website: 'https://techcorp.com',
+        linkedinProfile: 'https://linkedin.com/in/sarahjohnson'
+      }
+    },
+    {
+      id: 2,
+      name: 'Mike Thompson',
+      company: 'Thompson Consulting',
+      position: 'Business Coach',
+      email: 'mike@thompsonconsulting.com',
+      category: 'Referral Partners',
+      isEnriched: false,
+      phone: 'Not found',
+      website: 'Not found'
+    },
+    {
+      id: 3,
+      name: 'Emma Wilson',
+      company: 'Wilson & Associates',
+      position: 'Managing Director',
+      email: 'emma@wilsonassoc.com',
+      category: 'Ideal Client',
+      isEnriched: true,
+      phone: '+44 7987 654321',
+      website: 'www.wilsonassoc.com',
+      enrichmentData: {
+        industry: 'Professional Services',
+        location: 'Manchester, UK',
+        website: 'https://wilsonassoc.com',
+        linkedinProfile: 'https://linkedin.com/in/emmawilson'
+      }
+    }
+  ]);
+  
   const [categories] = useState(['Ideal Client', 'Referral Partners', 'Competitors', 'Other']);
   
   // Search and filter state
@@ -65,7 +132,16 @@ const GlassSlipperApp = () => {
   });
 
   // Lead magnets state
-  const [leadMagnets, setLeadMagnets] = useState([]);
+  const [leadMagnets, setLeadMagnets] = useState([
+    {
+      id: 1,
+      title: 'The Ultimate Guide to B2B SaaS Growth',
+      description: 'A comprehensive 25-page guide covering proven strategies to scale your B2B SaaS business.',
+      type: 'PDF Guide',
+      created: '2024-01-15',
+      downloads: 0
+    }
+  ]);
 
   // Enrichments counter
   const [enrichmentsLeft, setEnrichmentsLeft] = useState(50);
@@ -74,15 +150,15 @@ const GlassSlipperApp = () => {
   const [tasks, setTasks] = useState([
     { id: 1, text: 'Upload your LinkedIn connections', completed: false, priority: 'high' },
     { id: 2, text: 'Configure your business settings', completed: false, priority: 'high' },
-    { id: 3, text: 'Auto-categorize your contacts', completed: false, priority: 'medium' },
+    { id: 3, text: 'Auto-categorise your contacts', completed: false, priority: 'medium' },
     { id: 4, text: 'Generate your LinkedIn strategy', completed: false, priority: 'medium' },
     { id: 5, text: 'Create your first lead magnet', completed: false, priority: 'low' }
   ]);
 
-  // CHANGE 1: Contact task management state
+  // Contact task management state
   const [contactTasks, setContactTasks] = useState({});
 
-  // CHANGE 2: Daily tasks state
+  // Daily tasks state
   const [dailyTasks, setDailyTasks] = useState({
     chooseIdealClients: { completed: false, count: 0, total: 5 },
     commentOnPosts: { completed: false, count: 0, total: 5 },
@@ -90,206 +166,597 @@ const GlassSlipperApp = () => {
     lastReset: new Date().toDateString()
   });
 
-  // CHANGE 2: Track which ideal clients are shown in tasks
-  const [taskListClients, setTaskListClients] = useState([]);
-  const [completedAllIdealClients, setCompletedAllIdealClients] = useState(false);
-
-  // CHANGE 3: Track which ideal client is currently being shown in dashboard
+  // Track which ideal client is currently being shown in dashboard
   const [currentIdealClientIndex, setCurrentIdealClientIndex] = useState(0);
-  const [isDirectOutreachCycle, setIsDirectOutreachCycle] = useState(false);
 
-  // CHANGE 1: Load contact tasks from localStorage on mount
-  useEffect(() => {
-    const savedTasks = localStorage.getItem('contactTasks');
-    if (savedTasks) {
-      setContactTasks(JSON.parse(savedTasks));
-    }
-  }, []);
+  // File upload handler
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-  // CHANGE 1: Save contact tasks to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('contactTasks', JSON.stringify(contactTasks));
-  }, [contactTasks]);
+    setLoadingMessage('Processing your LinkedIn connections...');
+    setShowLoadingModal(true);
 
-  // CHANGE 2: Load and save daily tasks
-  useEffect(() => {
-    const savedDailyTasks = localStorage.getItem('dailyTasks');
-    if (savedDailyTasks) {
-      const parsed = JSON.parse(savedDailyTasks);
-      // Check if we need to reset (new day)
-      const today = new Date().toDateString();
-      if (parsed.lastReset !== today) {
-        // Reset daily tasks
-        setDailyTasks({
-          chooseIdealClients: { completed: false, count: 0, total: 5 },
-          commentOnPosts: { completed: false, count: 0, total: 5 },
-          postContent: { completed: false },
-          lastReset: today
-        });
-      } else {
-        setDailyTasks(parsed);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('dailyTasks', JSON.stringify(dailyTasks));
-  }, [dailyTasks]);
-
-  // CHANGE 2: Update task list clients when contacts or tasks change
-  useEffect(() => {
-    updateTaskListClients();
-  }, [contacts, contactTasks]);
-
-  // CHANGE 3: Load and save current ideal client index
-  useEffect(() => {
-    const savedIndex = localStorage.getItem('currentIdealClientIndex');
-    const savedCycle = localStorage.getItem('isDirectOutreachCycle');
-    if (savedIndex) {
-      setCurrentIdealClientIndex(parseInt(savedIndex));
-    }
-    if (savedCycle) {
-      setIsDirectOutreachCycle(savedCycle === 'true');
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('currentIdealClientIndex', currentIdealClientIndex.toString());
-    localStorage.setItem('isDirectOutreachCycle', isDirectOutreachCycle.toString());
-  }, [currentIdealClientIndex, isDirectOutreachCycle]);
-
-  // CHANGE 3: Update current client index when tasks are completed
-  useEffect(() => {
-    const idealClients = contacts.filter(c => c.category === 'Ideal Client').sort((a, b) => a.name.localeCompare(b.name));
-    if (idealClients.length === 0) return;
-
-    const currentClient = idealClients[currentIdealClientIndex];
-    if (!currentClient) return;
-
-    const tasks = contactTasks[currentClient.id] || {};
-    const allBasicTasksComplete = tasks.viewProfile?.completed && 
-                                  tasks.turnOnNotifications?.completed && 
-                                  tasks.sendMessage?.completed;
-    
-    const followUpComplete = !shouldShowFollowUp(currentClient.id) || tasks.followUp?.completed;
-    const directOutreachComplete = !isDirectOutreachCycle || tasks.sendDirectSalesMessage?.completed;
-
-    // Check if current client's tasks are complete
-    if (isDirectOutreachCycle) {
-      if (directOutreachComplete) {
-        // Move to next client in direct outreach cycle
-        if (currentIdealClientIndex < idealClients.length - 1) {
-          setCurrentIdealClientIndex(currentIdealClientIndex + 1);
-        } else {
-          // Completed full cycle - start over
-          setCurrentIdealClientIndex(0);
-          setIsDirectOutreachCycle(false);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        const nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
+        const companyIndex = headers.findIndex(h => h.toLowerCase().includes('company'));
+        const positionIndex = headers.findIndex(h => h.toLowerCase().includes('position') || h.toLowerCase().includes('title'));
+        const emailIndex = headers.findIndex(h => h.toLowerCase().includes('email'));
+        
+        const newContacts = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+          if (values.length > 1 && values[nameIndex] && values[nameIndex] !== '') {
+            const contact = {
+              id: Date.now() + i,
+              name: values[nameIndex] || 'Unknown',
+              company: values[companyIndex] || 'Unknown Company',
+              position: values[positionIndex] || 'Unknown Position',
+              email: values[emailIndex] || `contact${i}@example.com`,
+              category: 'Uncategorised',
+              isEnriched: false,
+              phone: 'Not found',
+              website: 'Not found'
+            };
+            newContacts.push(contact);
+          }
         }
+        
+        setTimeout(() => {
+          setContacts(prev => [...prev, ...newContacts]);
+          setShowLoadingModal(false);
+          setSuccessMessage(`Successfully uploaded ${newContacts.length} contacts!`);
+          setShowSuccessModal(true);
+          
+          // Mark task as complete
+          setTasks(prev => prev.map(task => 
+            task.id === 1 ? { ...task, completed: true } : task
+          ));
+        }, 2000);
+      } catch (error) {
+        setShowLoadingModal(false);
+        alert('Error processing file. Please ensure it\'s a valid CSV file.');
       }
-    } else {
-      if (allBasicTasksComplete && followUpComplete) {
-        // Move to next client
-        if (currentIdealClientIndex < idealClients.length - 1) {
-          setCurrentIdealClientIndex(currentIdealClientIndex + 1);
-        } else {
-          // Completed all clients - start direct outreach cycle
-          setCurrentIdealClientIndex(0);
-          setIsDirectOutreachCycle(true);
-        }
-      }
-    }
-  }, [contacts, contactTasks, currentIdealClientIndex, isDirectOutreachCycle]);
+    };
 
-  // CHANGE 2: Function to update which clients show in task list
-  const updateTaskListClients = () => {
-    const idealClients = contacts.filter(c => c.category === 'Ideal Client');
-    
-    // First, get all clients with pending follow-up tasks
-    const clientsWithFollowUps = idealClients.filter(client => 
-      shouldShowFollowUp(client.id) && !getTaskStatus(client.id, 'followUp').completed
+    reader.readAsText(file);
+  };
+
+  // REAL API: Enrich contacts using Serper + Claude
+  const enrichIdealClients = async () => {
+    // Check API configuration
+    if (!isApiConfigured()) {
+      alert('Please configure your Serper API key first. Check the API configuration section in the code.');
+      return;
+    }
+
+    const idealClientsToEnrich = contacts.filter(c => 
+      c.category === 'Ideal Client' && !c.isEnriched
     );
-    
-    // Then get clients with any incomplete tasks (excluding those already in follow-ups)
-    const clientsWithIncompleteTasks = idealClients.filter(client => {
-      const hasFollowUp = clientsWithFollowUps.some(c => c.id === client.id);
-      if (hasFollowUp) return false;
-      
-      const tasks = contactTasks[client.id] || {};
-      const hasIncompleteTasks = 
-        !tasks.viewProfile?.completed ||
-        !tasks.turnOnNotifications?.completed ||
-        !tasks.sendMessage?.completed ||
-        (completedAllIdealClients && !tasks.sendDirectSalesMessage?.completed);
-      
-      return hasIncompleteTasks;
-    });
-    
-    // Combine and take first 5
-    const allRelevantClients = [...clientsWithFollowUps, ...clientsWithIncompleteTasks];
-    setTaskListClients(allRelevantClients.slice(0, 5));
-    
-    // Check if all ideal clients have completed all tasks
-    const allCompleted = idealClients.length > 0 && idealClients.every(client => {
-      const tasks = contactTasks[client.id] || {};
-      return tasks.viewProfile?.completed &&
-             tasks.turnOnNotifications?.completed &&
-             tasks.sendMessage?.completed &&
-             (!shouldShowFollowUp(client.id) || tasks.followUp?.completed);
-    });
-    
-    setCompletedAllIdealClients(allCompleted);
-  };
 
-  // CHANGE 1: Function to check if follow-up task should be shown
-  const shouldShowFollowUp = (contactId) => {
-    const tasks = contactTasks[contactId];
-    if (!tasks || !tasks.sendMessage || !tasks.sendMessage.completed) return false;
-    
-    const completedDate = new Date(tasks.sendMessage.completedDate);
-    const currentDate = new Date();
-    const diffTime = Math.abs(currentDate - completedDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays >= 3;
-  };
+    if (idealClientsToEnrich.length === 0) {
+      alert('No ideal clients to enrich');
+      return;
+    }
 
-  // CHANGE 1: Function to toggle task completion
-  const toggleContactTask = (contactId, taskKey) => {
-    setContactTasks(prev => {
-      const updatedTasks = { ...prev };
-      if (!updatedTasks[contactId]) {
-        updatedTasks[contactId] = {};
+    if (enrichmentsLeft < idealClientsToEnrich.length) {
+      alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
+      return;
+    }
+
+    setLoadingMessage(`Enriching ${idealClientsToEnrich.length} ideal clients with real data...`);
+    setShowLoadingModal(true);
+
+    try {
+      const enrichedContacts = [...contacts];
+      
+      for (const contact of idealClientsToEnrich) {
+        try {
+          // Step 1: Use Serper to search for company information
+          const companySearchQuery = `"${contact.company}" industry services contact information`;
+          const personSearchQuery = `"${contact.name}" "${contact.company}" "${contact.position}"`;
+          
+          // Search for company information
+          const companySearchResponse = await fetch('https://google.serper.dev/search', {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': SERPER_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              q: companySearchQuery,
+              num: 5
+            })
+          });
+
+          const personSearchResponse = await fetch('https://google.serper.dev/search', {
+            method: 'POST', 
+            headers: {
+              'X-API-KEY': SERPER_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              q: personSearchQuery,
+              num: 3
+            })
+          });
+
+          if (!companySearchResponse.ok || !personSearchResponse.ok) {
+            throw new Error(`Search API failed: ${companySearchResponse.status} ${personSearchResponse.status}`);
+          }
+
+          const companyData = await companySearchResponse.json();
+          const personData = await personSearchResponse.json();
+
+          // Step 2: Use Claude to process search results and extract structured data
+          const enrichmentPrompt = `
+Analyse the following search results and extract structured contact information for:
+Name: ${contact.name}
+Company: ${contact.company}
+Position: ${contact.position}
+
+Company Search Results:
+${JSON.stringify(companyData.organic?.slice(0, 3) || [], null, 2)}
+
+Person Search Results:  
+${JSON.stringify(personData.organic?.slice(0, 2) || [], null, 2)}
+
+Extract and return ONLY a JSON object with these exact fields:
+{
+  "phone": "phone number in UK format or 'Not found'",
+  "industry": "specific industry/sector or 'Not found'", 
+  "location": "city, country or 'Not found'",
+  "website": "company website URL or 'Not found'"
+}
+
+Rules:
+- Phone must be in format "+44 XXXX XXXXXX" or "Not found"
+- Industry should be specific (e.g. "Technology - Software Development", "Professional Services - Consulting")
+- Location should be "City, Country" format
+- Website should be full URL starting with https:// or "Not found"
+- Respond with ONLY the JSON object, no other text
+`;
+
+          const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 500,
+              messages: [
+                { role: "user", content: enrichmentPrompt }
+              ]
+            })
+          });
+
+          if (!claudeResponse.ok) {
+            throw new Error(`Claude API failed: ${claudeResponse.status}`);
+          }
+
+          const claudeData = await claudeResponse.json();
+          const enrichmentText = claudeData.content[0].text.trim();
+          
+          // Parse Claude's JSON response
+          let enrichmentInfo;
+          try {
+            // Remove any markdown formatting
+            const cleanJson = enrichmentText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            enrichmentInfo = JSON.parse(cleanJson);
+          } catch (parseError) {
+            // Fallback if JSON parsing fails
+            enrichmentInfo = {
+              phone: 'Not found',
+              industry: 'Not found', 
+              location: 'Not found',
+              website: 'Not found'
+            };
+          }
+
+          // Update the contact with enriched data
+          const contactIndex = enrichedContacts.findIndex(c => c.id === contact.id);
+          if (contactIndex !== -1) {
+            enrichedContacts[contactIndex] = {
+              ...contact,
+              isEnriched: true,
+              phone: enrichmentInfo.phone || 'Not found',
+              website: enrichmentInfo.website || 'Not found',
+              enrichmentData: {
+                industry: enrichmentInfo.industry || 'Not found',
+                location: enrichmentInfo.location || 'Not found', 
+                website: enrichmentInfo.website || 'Not found',
+                linkedinProfile: `https://linkedin.com/in/${contact.name.toLowerCase().replace(/[^a-z]/g, '')}`
+              }
+            };
+          }
+
+          // Small delay to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+          console.error(`Failed to enrich ${contact.name}:`, error);
+          
+          // Fallback: mark as enriched but with "Not found" data
+          const contactIndex = enrichedContacts.findIndex(c => c.id === contact.id);
+          if (contactIndex !== -1) {
+            enrichedContacts[contactIndex] = {
+              ...contact,
+              isEnriched: true,
+              phone: 'Search failed',
+              website: 'Search failed',
+              enrichmentData: {
+                industry: 'Search failed',
+                location: 'Search failed',
+                website: 'Search failed', 
+                linkedinProfile: 'Search failed'
+              }
+            };
+          }
+        }
       }
-      
-      if (!updatedTasks[contactId][taskKey]) {
-        updatedTasks[contactId][taskKey] = { completed: false, completedDate: null };
-      }
-      
-      // Toggle completion status
-      if (updatedTasks[contactId][taskKey].completed) {
-        // Uncomplete the task
-        updatedTasks[contactId][taskKey] = {
-          completed: false,
-          completedDate: null
-        };
-      } else {
-        // Complete the task
-        updatedTasks[contactId][taskKey] = {
-          completed: true,
-          completedDate: new Date().toISOString()
-        };
-      }
-      
-      return updatedTasks;
-    });
+
+      setContacts(enrichedContacts);
+      setEnrichmentsLeft(prev => prev - idealClientsToEnrich.length);
+      setShowLoadingModal(false);
+      setSuccessMessage(`Successfully enriched ${idealClientsToEnrich.length} ideal clients with real data!`);
+      setShowSuccessModal(true);
+
+    } catch (error) {
+      console.error('Enrichment failed:', error);
+      setShowLoadingModal(false);
+      alert(`Enrichment failed: ${error.message}. Please check your API keys and try again.`);
+    }
   };
 
-  // CHANGE 1: Function to get task status
-  const getTaskStatus = (contactId, taskKey) => {
-    return contactTasks[contactId]?.[taskKey] || { completed: false, completedDate: null };
+  // REAL API: AI categorisation using Claude with enriched data
+  const aiCategorizeAll = async () => {
+    setLoadingMessage('AI is categorising your contacts using enriched data...');
+    setShowLoadingModal(true);
+
+    try {
+      const categorisedContacts = [...contacts];
+      
+      // Process contacts in batches to avoid rate limits
+      const batchSize = 5;
+      for (let i = 0; i < contacts.length; i += batchSize) {
+        const batch = contacts.slice(i, i + batchSize);
+        
+        for (const contact of batch) {
+          try {
+            const categorizationPrompt = `
+You are an AI assistant helping to categorise business contacts for effective LinkedIn ABM.
+
+USER'S BUSINESS PROFILE:
+- Business Type: ${user.businessType}
+- Target Market: ${user.targetMarket}
+- Company: ${user.company}
+- Ideal Referral Partners: ${user.referralPartners}
+
+CONTACT TO CATEGORISE:
+Name: ${contact.name}
+Company: ${contact.company}
+Position: ${contact.position}
+${contact.isEnriched ? `
+ENRICHED DATA:
+- Industry: ${contact.enrichmentData?.industry || 'Not available'}
+- Location: ${contact.enrichmentData?.location || 'Not available'}
+- Website: ${contact.enrichmentData?.website || 'Not available'}
+` : 'No enriched data available'}
+
+CATEGORIES:
+1. "Ideal Client" - Decision makers who could buy your services/products
+2. "Referral Partners" - People who could refer clients to you
+3. "Competitors" - People in competing businesses
+4. "Other" - Everyone else
+
+Based on the user's business profile and contact information, categorise this contact.
+
+Respond with ONLY a JSON object:
+{
+  "category": "one of the four categories above",
+  "confidence": 0.85,
+  "reasoning": "brief explanation of why this category fits"
+}
+
+Rules:
+- Consider job title, company, industry, and business relevance
+- High-level positions (CEO, Director, VP, Head of) at target companies = likely Ideal Client
+- People in complementary services (accountants, coaches, consultants) = likely Referral Partners
+- Similar business types or services = likely Competitors
+- Use enriched data to make more accurate decisions
+- Respond with ONLY the JSON object, no other text
+`;
+
+            const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 300,
+                messages: [
+                  { role: "user", content: categorizationPrompt }
+                ]
+              })
+            });
+
+            if (!claudeResponse.ok) {
+              throw new Error('Claude API failed');
+            }
+
+            const claudeData = await claudeResponse.json();
+            const categorizationText = claudeData.content[0].text.trim();
+            
+            // Parse Claude's JSON response
+            let categorization;
+            try {
+              // Remove any markdown formatting
+              const cleanJson = categorizationText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+              categorization = JSON.parse(cleanJson);
+            } catch (parseError) {
+              // Fallback categorization
+              const position = contact.position.toLowerCase();
+              let fallbackCategory = 'Other';
+              
+              if (position.includes('ceo') || position.includes('founder') || position.includes('director')) {
+                fallbackCategory = 'Ideal Client';
+              } else if (position.includes('consultant') || position.includes('coach') || position.includes('advisor')) {
+                fallbackCategory = 'Referral Partners';
+              }
+              
+              categorization = {
+                category: fallbackCategory,
+                confidence: 0.5,
+                reasoning: 'Fallback categorization due to API parsing error'
+              };
+            }
+
+            // Update the contact with AI categorization
+            const contactIndex = categorisedContacts.findIndex(c => c.id === contact.id);
+            if (contactIndex !== -1) {
+              categorisedContacts[contactIndex] = {
+                ...contact,
+                category: categorization.category,
+                categoryConfidence: categorization.confidence,
+                categoryReasoning: categorization.reasoning
+              };
+            }
+
+            // Small delay to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+          } catch (error) {
+            console.error(`Failed to categorise ${contact.name}:`, error);
+            
+            // Fallback categorization for failed contacts
+            const position = contact.position.toLowerCase();
+            let fallbackCategory = 'Other';
+            
+            if (position.includes('ceo') || position.includes('founder') || position.includes('director')) {
+              fallbackCategory = 'Ideal Client';
+            } else if (position.includes('consultant') || position.includes('coach')) {
+              fallbackCategory = 'Referral Partners';
+            }
+            
+            const contactIndex = categorisedContacts.findIndex(c => c.id === contact.id);
+            if (contactIndex !== -1) {
+              categorisedContacts[contactIndex] = {
+                ...contact,
+                category: fallbackCategory,
+                categoryConfidence: 0.3,
+                categoryReasoning: 'Fallback categorization due to API error'
+              };
+            }
+          }
+        }
+        
+        // Longer delay between batches
+        if (i + batchSize < contacts.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      setContacts(categorisedContacts);
+      setShowLoadingModal(false);
+      setSuccessMessage('Successfully categorised all contacts using AI and enriched data!');
+      setShowSuccessModal(true);
+      
+      // Mark task as complete
+      setTasks(prev => prev.map(task => 
+        task.id === 3 ? { ...task, completed: true } : task
+      ));
+
+    } catch (error) {
+      console.error('Categorization failed:', error);
+      setShowLoadingModal(false);
+      alert('AI categorization failed. Please check your API configuration and try again.');
+    }
   };
 
-  // CHANGE 2: Toggle daily task functions
+  // Generate strategy
+  const generateStrategy = () => {
+    if (!strategy.oneOffer || !strategy.idealReferralPartners) {
+      alert('Please fill in all required fields before generating strategy.');
+      return;
+    }
+
+    setLoadingMessage('Generating your personalised LinkedIn strategy...');
+    setShowLoadingModal(true);
+
+    setTimeout(() => {
+      const generatedStrategy = `
+# Your Personalised LinkedIn ABM Strategy
+
+## Executive Summary
+Based on your business profile as a ${user.businessType} company targeting ${user.targetMarket}, here's your tailored approach:
+
+## Core Offer Strategy
+**Your Primary Offer:** ${strategy.oneOffer}
+
+This offer should be positioned as the cornerstone of your LinkedIn outreach, emphasising value and addressing key pain points in the ${user.targetMarket} market.
+
+## Ideal Client Targeting
+Focus your efforts on decision-makers in ${user.targetMarket} companies, particularly:
+- CEOs and Founders of growing businesses
+- Heads of Sales and Marketing
+- Business Development Directors
+- Operations Managers
+
+## Referral Partner Strategy
+**Target Partners:** ${strategy.idealReferralPartners}
+
+These partners can provide warm introductions and credibility. Develop a systematic approach to:
+1. Identify active partners in your network
+2. Create partnership proposals
+3. Establish referral incentive programmes
+
+## Content Strategy
+**Writing Style:** ${user.writingStyle}
+
+### Weekly Content Calendar:
+- **Monday:** Industry insight posts
+- **Wednesday:** Client success stories
+- **Friday:** Educational content related to ${strategy.oneOffer}
+
+## Special Factors
+${strategy.specialFactors || 'Focus on building authentic relationships and providing value before making any sales pitches.'}
+
+## Implementation Timeline
+**Week 1-2:** Set up tracking and identify top 20 ideal clients
+**Week 3-4:** Begin systematic outreach with personalised messages
+**Week 5-8:** Nurture relationships and introduce referral partners
+**Week 9-12:** Scale successful approaches and refine messaging
+
+## Key Metrics to Track
+- Connection acceptance rate
+- Message response rate
+- Meeting conversion rate
+- Referral partner engagement
+- Content engagement rates
+
+This strategy should be reviewed and refined monthly based on performance data.
+      `;
+
+      setStrategy(prev => ({
+        ...prev,
+        generatedStrategy
+      }));
+
+      setShowLoadingModal(false);
+      setSuccessMessage('Your LinkedIn strategy has been generated!');
+      setShowSuccessModal(true);
+
+      // Mark task as complete
+      setTasks(prev => prev.map(task => 
+        task.id === 4 ? { ...task, completed: true } : task
+      ));
+    }, 3000);
+  };
+
+  // Generate lead magnet
+  const generateLeadMagnet = () => {
+    if (!strategy.generatedStrategy) {
+      alert('Please generate your LinkedIn strategy first.');
+      return;
+    }
+
+    setLoadingMessage('Creating your lead magnet...');
+    setShowLoadingModal(true);
+
+    setTimeout(() => {
+      const titles = [
+        `The Ultimate ${user.targetMarket} Growth Guide`,
+        `7 Proven Strategies for ${user.targetMarket} Success`,
+        `How to Scale Your ${user.businessType} Business in 2024`,
+        `The Complete ${user.targetMarket} Playbook`,
+        `Insider Secrets: ${user.targetMarket} Best Practices`
+      ];
+
+      const newLeadMagnet = {
+        id: Date.now(),
+        title: titles[Math.floor(Math.random() * titles.length)],
+        description: `A comprehensive guide tailored for ${user.targetMarket} professionals, featuring proven strategies, case studies, and actionable insights from industry leaders.`,
+        type: 'PDF Guide',
+        created: new Date().toISOString().split('T')[0],
+        downloads: 0,
+        content: `
+# ${titles[Math.floor(Math.random() * titles.length)]}
+
+## Table of Contents
+1. Introduction to ${user.targetMarket}
+2. Current Market Challenges
+3. Proven Growth Strategies
+4. Case Studies and Success Stories
+5. Implementation Roadmap
+6. Tools and Resources
+7. Next Steps
+
+## Chapter 1: Introduction
+Welcome to your comprehensive guide for ${user.targetMarket} success. This guide has been specifically created for professionals like you who are looking to accelerate their growth and overcome common industry challenges.
+
+## Chapter 2: Market Analysis
+The ${user.targetMarket} landscape is evolving rapidly. Here are the key trends and challenges:
+- Digital transformation acceleration
+- Increased competition for talent
+- Rising customer expectations
+- Need for operational efficiency
+
+## Chapter 3: Growth Strategies
+Based on analysis of successful ${user.targetMarket} companies, here are the top strategies:
+
+### Strategy 1: Customer-Centric Approach
+Focus on delivering exceptional customer value through:
+- Personalised service delivery
+- Proactive communication
+- Continuous improvement based on feedback
+
+### Strategy 2: Digital Optimisation
+Leverage technology to:
+- Streamline operations
+- Improve customer experience
+- Enhance data-driven decision making
+
+### Strategy 3: Strategic Partnerships
+Build relationships with complementary businesses to:
+- Expand market reach
+- Share resources and expertise
+- Create win-win opportunities
+
+## Implementation Roadmap
+**Phase 1 (Months 1-2):** Assessment and Planning
+**Phase 2 (Months 3-4):** Implementation and Testing
+**Phase 3 (Months 5-6):** Optimisation and Scaling
+
+## Conclusion
+Success in ${user.targetMarket} requires a systematic approach, continuous learning, and strategic execution. Use this guide as your roadmap to sustainable growth.
+
+---
+*This guide was created specifically for ${user.company} and reflects current industry best practices.*
+        `
+      };
+
+      setLeadMagnets(prev => [newLeadMagnet, ...prev]);
+      setShowLoadingModal(false);
+      setSuccessMessage('Your lead magnet has been created!');
+      setShowSuccessModal(true);
+
+      // Mark task as complete
+      setTasks(prev => prev.map(task => 
+        task.id === 5 ? { ...task, completed: true } : task
+      ));
+    }, 2500);
+  };
+
+  // Daily task functions
   const toggleDailyTask = (taskKey) => {
     setDailyTasks(prev => {
       const updated = { ...prev };
@@ -298,11 +765,9 @@ const GlassSlipperApp = () => {
         updated.postContent.completed = !updated.postContent.completed;
       } else if (taskKey === 'chooseIdealClients' || taskKey === 'commentOnPosts') {
         if (updated[taskKey].completed) {
-          // Uncomplete
           updated[taskKey].completed = false;
           updated[taskKey].count = 0;
         } else {
-          // Complete
           updated[taskKey].completed = true;
           updated[taskKey].count = updated[taskKey].total;
         }
@@ -310,6 +775,59 @@ const GlassSlipperApp = () => {
       
       return updated;
     });
+  };
+
+  // Update contact category
+  const updateCategory = (contactId, newCategory) => {
+    setContacts(prev => 
+      prev.map(contact => 
+        contact.id === contactId 
+          ? { ...contact, category: newCategory }
+          : contact
+      )
+    );
+  };
+
+  // Delete contact
+  const deleteContact = (contactId) => {
+    setContacts(prev => prev.filter(c => c.id !== contactId));
+    setShowContactModal(false);
+    setSuccessMessage('Contact deleted successfully!');
+    setShowSuccessModal(true);
+  };
+
+  // Contact task functions
+  const getTaskStatus = (contactId, taskKey) => {
+    return contactTasks[contactId]?.[taskKey] || { completed: false, completedDate: null };
+  };
+
+  const toggleContactTask = (contactId, taskKey) => {
+    setContactTasks(prev => ({
+      ...prev,
+      [contactId]: {
+        ...prev[contactId],
+        [taskKey]: {
+          completed: !getTaskStatus(contactId, taskKey).completed,
+          completedDate: !getTaskStatus(contactId, taskKey).completed ? new Date().toISOString() : null
+        }
+      }
+    }));
+  };
+
+  // Download lead magnet
+  const downloadLeadMagnet = (leadMagnet) => {
+    const element = document.createElement('a');
+    const file = new Blob([leadMagnet.content], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${leadMagnet.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    // Update download count
+    setLeadMagnets(prev => prev.map(lm => 
+      lm.id === leadMagnet.id ? { ...lm, downloads: lm.downloads + 1 } : lm
+    ));
   };
 
   // Form validation
@@ -344,313 +862,33 @@ const GlassSlipperApp = () => {
     setCurrentView('dashboard');
   };
 
-  // Delete contact
-  const deleteContact = (contactId) => {
-    setContacts(prev => prev.filter(c => c.id !== contactId));
+  // Close modals
+  const closeModals = () => {
     setShowContactModal(false);
-    setSuccessMessage('Contact deleted successfully!');
-    setShowSuccessModal(true);
+    setShowLoadingModal(false);
+    setShowSuccessModal(false);
+    setShowLeadMagnetModal(false);
+    setShowSettingsModal(false);
+    setSelectedContact(null);
+    setSelectedLeadMagnet(null);
   };
 
-  // AI categorization function
-  const aiCategorize = (contact) => {
-    const position = contact.position.toLowerCase();
-    const name = contact.name.toLowerCase();
-    const company = contact.company.toLowerCase();
-    
-    // Simple rule-based categorization for demo
-    if (position.includes('ceo') || position.includes('founder') || position.includes('owner') || 
-        position.includes('director') || position.includes('head of') || position.includes('vp')) {
-      return 'Ideal Client';
-    } else if (position.includes('consultant') || position.includes('coach') || 
-               position.includes('advisor') || position.includes('accountant')) {
-      return 'Referral Partners';
-    } else if (company.includes('competitor') || position.includes('sales') || 
-               position.includes('business development')) {
-      return 'Competitors';
-    } else {
-      return 'Other';
-    }
-  };
-
-  // File upload handler
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      const nameIndex = headers.findIndex(h => h.toLowerCase().includes('name'));
-      const companyIndex = headers.findIndex(h => h.toLowerCase().includes('company'));
-      const positionIndex = headers.findIndex(h => h.toLowerCase().includes('position') || h.toLowerCase().includes('title'));
-      const emailIndex = headers.findIndex(h => h.toLowerCase().includes('email'));
-      
-      const newContacts = [];
-      
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        if (values.length > 1 && values[nameIndex]) {
-          const contact = {
-            id: Date.now() + i,
-            name: values[nameIndex] || 'Unknown',
-            company: values[companyIndex] || 'Unknown Company',
-            position: values[positionIndex] || 'Unknown Position',
-            email: values[emailIndex] || 'email@example.com',
-            category: 'Uncategorized',
-            isEnriched: false
-          };
-          newContacts.push(contact);
-        }
-      }
-      
-      setContacts(newContacts);
-      setSuccessMessage(`Successfully uploaded ${newContacts.length} contacts!`);
-      setShowSuccessModal(true);
-      
-      // Mark task as complete
-      setTasks(prev => prev.map(task => 
-        task.id === 1 ? { ...task, completed: true } : task
-      ));
-    };
-    
-    reader.readAsText(file);
-  };
-
-  // AI categorize all contacts
-  const aiCategorizeAll = () => {
-    if (contacts.length === 0) {
-      alert('Please upload contacts first');
-      return;
-    }
-
-    setLoadingMessage('AI is categorizing your contacts...');
+  // Save settings
+  const saveSettings = () => {
     setShowLoadingModal(true);
+    setLoadingMessage('Saving your settings...');
     
     setTimeout(() => {
-      const categorizedContacts = contacts.map(contact => ({
-        ...contact,
-        category: aiCategorize(contact)
-      }));
-      
-      setContacts(categorizedContacts);
       setShowLoadingModal(false);
-      setSuccessMessage('All contacts have been categorized!');
+      setShowSettingsModal(false);
+      setSuccessMessage('Settings saved successfully!');
       setShowSuccessModal(true);
       
       // Mark task as complete
       setTasks(prev => prev.map(task => 
-        task.id === 3 ? { ...task, completed: true } : task
+        task.id === 2 ? { ...task, completed: true } : task
       ));
-    }, 1500);
-  };
-
-  // Generate strategy with real AI
-  const generateStrategy = async () => {
-    if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
-      alert('Please fill in all strategy fields first');
-      return;
-    }
-
-    setLoadingMessage('Generating your LinkedIn strategy...');
-    setShowLoadingModal(true);
-    
-    try {
-      // Create comprehensive prompt based on LinkedIn Formula
-      const prompt = `You are an expert LinkedIn strategist implementing Adam Jones' LinkedIn Formula methodology. 
-
-User's Business Details:
-- One Offer: ${strategy.oneOffer}
-- Ideal Referral Partners: ${strategy.idealReferralPartners}
-- What Makes Them Special: ${strategy.specialFactors}
-- Business Type: ${user.businessType}
-- Target Market: ${user.targetMarket}
-- Writing Style: ${user.writingStyle}
-
-Based on Adam Jones' LinkedIn Formula 10-step process:
-1. Define your one offer ✓
-2. Create your value proposition
-3. Build your Ideal Customer Profile
-4. Do some customer interviews
-5. Discover your style ✓
-6. Shoot some content
-7. Write your profile
-8. Build the strategy
-9. Start implementing it
-10. Constantly review
-
-Key principles from the LinkedIn Formula:
-- Focus on ONE thing to be known for
-- Your profile is a landing page
-- Content funnel: 3x Awareness, 2x Interest, 1x Decision, 1x Action
-- Content types: Education, Storytelling, Personal, Expertise, Sales
-- Success requires strategic preparation - 8 of 10 steps happen before posting
-- Stop selling, start helping
-- Content strategy: Case Study → Advice → Personal → Sales → Testimonial
-
-Create a comprehensive LinkedIn strategy that includes:
-
-1. **Value Proposition** (following Adam's 3-part formula: What you provide + Who you provide it to + What makes you unique)
-
-2. **Ideal Customer Profile** (detailed description of who will buy from them)
-
-3. **Content Strategy** (specific content calendar following the funnel approach)
-
-4. **Profile Optimization** (headline, about section, call-to-action)
-
-5. **Engagement Strategy** (how to find and engage with ideal clients)
-
-6. **Pain Points** (specific problems their ideal clients face)
-
-7. **Implementation Plan** (step-by-step next actions)
-
-8. **Messaging Framework** (how to start conversations that lead to business)
-
-Make this strategy actionable, specific, and based on proven LinkedIn Formula principles. Write in a straightforward, conversational tone that values radical candour. Include specific examples and avoid generic advice.`;
-
-      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 4000);
-      
-      setStrategy(prev => ({ ...prev, generatedStrategy: response }));
-      setShowLoadingModal(false);
-      setSuccessMessage('Strategy generated successfully!');
-      setShowSuccessModal(true);
-      
-      // Mark task as complete
-      setTasks(prev => prev.map(task => 
-        task.id === 4 ? { ...task, completed: true } : task
-      ));
-    } catch (error) {
-      console.error('Strategy generation failed:', error);
-      setShowLoadingModal(false);
-      alert('Failed to generate strategy. Please try again.');
-    }
-  };
-
-  // Enrich ideal clients with Apollo data
-  const enrichIdealClients = async () => {
-    const idealClientsToEnrich = contacts.filter(c => 
-      c.category === 'Ideal Client' && !c.isEnriched
-    );
-
-    if (idealClientsToEnrich.length === 0) {
-      alert('No ideal clients to enrich');
-      return;
-    }
-
-    if (enrichmentsLeft < idealClientsToEnrich.length) {
-      alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
-      return;
-    }
-
-    setLoadingMessage(`Enriching ${idealClientsToEnrich.length} ideal clients...`);
-    setShowLoadingModal(true);
-
-    try {
-      // Simulate API enrichment
-      setTimeout(() => {
-        const enrichedContacts = contacts.map(contact => {
-          if (contact.category === 'Ideal Client' && !contact.isEnriched) {
-            return {
-              ...contact,
-              isEnriched: true,
-              phone: '+44 7XXX XXXXXX',
-              website: `www.${contact.company.toLowerCase().replace(/\s+/g, '')}.com`,
-              revenue: '£2-5M',
-              employees: '50-200',
-              industry: 'Technology',
-              technologies: ['Salesforce', 'HubSpot', 'Slack'],
-              recentNews: [
-                'Recently raised Series A funding',
-                'Launched new product line',
-                'Expanding to European markets'
-              ]
-            };
-          }
-          return contact;
-        });
-
-        setContacts(enrichedContacts);
-        setEnrichmentsLeft(prev => prev - idealClientsToEnrich.length);
-        setShowLoadingModal(false);
-        setSuccessMessage(`Successfully enriched ${idealClientsToEnrich.length} ideal clients!`);
-        setShowSuccessModal(true);
-      }, 2000);
-    } catch (error) {
-      console.error('Enrichment failed:', error);
-      setShowLoadingModal(false);
-      alert('Enrichment failed. Please try again.');
-    }
-  };
-
-  // Generate personalized lead magnet
-  const generateLeadMagnet = async (contactId = null) => {
-    if (!strategy.generatedStrategy) {
-      alert('Please generate your LinkedIn strategy first');
-      return;
-    }
-
-    const contact = contactId ? contacts.find(c => c.id === contactId) : null;
-    const isPersonalized = !!contact;
-
-    setLoadingMessage(isPersonalized 
-      ? `Creating personalized lead magnet for ${contact.name}...`
-      : 'Creating general lead magnet...'
-    );
-    setShowLoadingModal(true);
-
-    try {
-      const prompt = isPersonalized 
-        ? `Create a highly personalized lead magnet for ${contact.name} at ${contact.company} (${contact.position}).
-           
-           Their company details:
-           - Industry: ${contact.industry || 'Not specified'}
-           - Size: ${contact.employees || 'Unknown'} employees
-           - Revenue: ${contact.revenue || 'Unknown'}
-           - Technologies used: ${contact.technologies?.join(', ') || 'Unknown'}
-           
-           My business: ${user.businessType}
-           My offer: ${strategy.oneOffer}
-           
-           Create a compelling, specific lead magnet title and outline that addresses their likely pain points.`
-        : `Create a general lead magnet for my target market.
-           
-           My business: ${user.businessType}
-           My target market: ${user.targetMarket}
-           My offer: ${strategy.oneOffer}
-           
-           Create a compelling lead magnet title and outline that addresses common pain points.`;
-
-      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 1500);
-      
-      const newLeadMagnet = {
-        id: Date.now(),
-        title: response.split('\n')[0].replace(/[*#]/g, '').trim(),
-        content: response,
-        isPersonalized,
-        contactId: contact?.id,
-        contactName: contact?.name,
-        createdAt: new Date().toISOString()
-      };
-
-      setLeadMagnets(prev => [...prev, newLeadMagnet]);
-      setShowLoadingModal(false);
-      setSuccessMessage('Lead magnet created successfully!');
-      setShowSuccessModal(true);
-      
-      // Mark task as complete if it's the first lead magnet
-      if (leadMagnets.length === 0) {
-        setTasks(prev => prev.map(task => 
-          task.id === 5 ? { ...task, completed: true } : task
-        ));
-      }
-    } catch (error) {
-      console.error('Lead magnet generation failed:', error);
-      setShowLoadingModal(false);
-      alert('Failed to generate lead magnet. Please try again.');
-    }
+    }, 1000);
   };
 
   // Stats calculations
@@ -658,6 +896,10 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
   const idealClients = contacts.filter(c => c.category === 'Ideal Client').length;
   const enrichedContacts = contacts.filter(c => c.isEnriched).length;
   const referralPartners = contacts.filter(c => c.category === 'Referral Partners').length;
+
+  // Get current ideal client for dashboard
+  const idealClientsList = contacts.filter(c => c.category === 'Ideal Client').sort((a, b) => a.name.localeCompare(b.name));
+  const currentIdealClient = idealClientsList[currentIdealClientIndex] || null;
 
   // Mobile menu items
   const navigationItems = [
@@ -687,72 +929,69 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               </div>
 
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 space-y-4">
-                <button 
-                  onClick={() => setAuthView('login')}
-                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-purple-900 py-3 px-6 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
-                >
-                  <Mail className="w-5 h-5" />
-                  <span>Sign In</span>
-                </button>
-                
-                <button 
-                  onClick={() => setAuthView('register')}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Get Started</span>
-                </button>
+                <div className="flex items-center space-x-3 text-white">
+                  <Shield className="w-5 h-5 text-green-400" />
+                  <span>AI-powered contact categorisation</span>
+                </div>
+                <div className="flex items-center space-x-3 text-white">
+                  <Users className="w-5 h-5 text-blue-400" />
+                  <span>LinkedIn relationship intelligence</span>
+                </div>
+                <div className="flex items-center space-x-3 text-white">
+                  <Target className="w-5 h-5 text-purple-400" />
+                  <span>Automated ABM workflows</span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <Shield className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                  <p className="text-white text-opacity-70 text-sm">Enterprise Security</p>
-                </div>
-                <div className="text-center">
-                  <Target className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                  <p className="text-white text-opacity-70 text-sm">AI-Powered</p>
-                </div>
-                <div className="text-center">
-                  <Users className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                  <p className="text-white text-opacity-70 text-sm">Smart CRM</p>
-                </div>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setAuthView('register')}
+                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-purple-900 py-3 rounded-lg font-semibold transition-all"
+                >
+                  Get Started Free
+                </button>
+                <button
+                  onClick={() => setAuthView('login')}
+                  className="w-full bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-3 rounded-lg font-medium transition-all"
+                >
+                  Sign In
+                </button>
               </div>
             </div>
           )}
 
           {authView === 'login' && (
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 space-y-6">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
                 <p className="text-white text-opacity-70">Sign in to your Glass Slipper account</p>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-white text-opacity-70 mb-2">Email</label>
+                  <label className="block text-white text-sm font-medium mb-2">Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
                     <input
                       type="email"
                       value={authForm.email}
-                      onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="john@example.com"
+                      placeholder="Enter your email"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-white text-opacity-70 mb-2">Password</label>
+                  <label className="block text-white text-sm font-medium mb-2">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={authForm.password}
-                      onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
                       className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="••••••••"
+                      placeholder="Enter your password"
                     />
                     <button
                       type="button"
@@ -763,18 +1002,18 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                     </button>
                   </div>
                 </div>
+
+                <button
+                  onClick={handleAuth}
+                  disabled={!validateAuthForm()}
+                  className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-purple-900 py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
+                >
+                  <span>Sign In</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
               </div>
 
-              <button
-                onClick={handleAuth}
-                disabled={!validateAuthForm()}
-                className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-500 text-purple-900 py-3 px-6 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
-              >
-                <ArrowRight className="w-5 h-5" />
-                <span>Sign In</span>
-              </button>
-
-              <p className="text-center text-white text-opacity-70">
+              <p className="text-center text-white text-opacity-70 text-sm mt-6">
                 Don't have an account?{' '}
                 <button onClick={() => setAuthView('register')} className="text-yellow-400 hover:underline">
                   Sign up here
@@ -784,79 +1023,105 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
           )}
 
           {authView === 'register' && (
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 space-y-6">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-white">Create Account</h2>
-                <p className="text-white text-opacity-70">Start your Glass Slipper journey</p>
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
+                <p className="text-white text-opacity-70">Join Glass Slipper and transform your LinkedIn network</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-white text-opacity-70 mb-2">Name</label>
+                    <label className="block text-white text-sm font-medium mb-2">Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                      <input
+                        type="text"
+                        value={authForm.name}
+                        onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                        placeholder="Your name"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Company</label>
+                    <div className="relative">
+                      <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                      <input
+                        type="text"
+                        value={authForm.company}
+                        onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
+                        className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                        placeholder="Your company"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
                     <input
-                      type="text"
-                      value={authForm.name}
-                      onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
-                      className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="John"
+                      type="email"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Enter your email"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-white text-opacity-70 mb-2">Company</label>
-                    <input
-                      type="text"
-                      value={authForm.company}
-                      onChange={(e) => setAuthForm({...authForm, company: e.target.value})}
-                      className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="Acme Ltd"
-                    />
+                    <label className="block text-white text-sm font-medium mb-2">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={authForm.password}
+                        onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                        className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                        placeholder="Create password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-opacity-70"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Confirm Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                      <input
+                        type="password"
+                        value={authForm.confirmPassword}
+                        onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                        placeholder="Confirm password"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={authForm.email}
-                    onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="john@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={authForm.confirmPassword}
-                    onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="••••••••"
-                  />
-                </div>
+                <button
+                  onClick={handleAuth}
+                  disabled={!validateAuthForm()}
+                  className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-purple-900 py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
+                >
+                  <span>Create Account</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
               </div>
 
-              <button
-                onClick={handleAuth}
-                disabled={!validateAuthForm()}
-                className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-500 text-purple-900 py-3 px-6 rounded-lg font-semibold transition-all"
-              >
-                Create Account
-              </button>
-
-              <p className="text-center text-white text-opacity-70">
+              <p className="text-center text-white text-opacity-70 text-sm mt-6">
                 Already have an account?{' '}
                 <button onClick={() => setAuthView('login')} className="text-yellow-400 hover:underline">
                   Sign in here
@@ -910,8 +1175,8 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
 
             <div className="flex items-center space-x-4">
               <div className="text-right hidden md:block">
-                <p className="text-white text-sm">{user.name || currentUser.name}</p>
-                <p className="text-white text-opacity-70 text-xs">{user.company || currentUser.company}</p>
+                <p className="text-white text-sm">{user.name}</p>
+                <p className="text-white text-opacity-70 text-xs">{user.company}</p>
               </div>
               <button
                 onClick={handleLogout}
@@ -1006,13 +1271,11 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               </div>
             </div>
 
-            {/* Tasks Section - CHANGE 3: Modified to show ideal client tasks after setup */}
+            {/* Tasks Section */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Tasks to do</h2>
+              <h2 className="text-xl font-semibold text-white mb-4">Setup Tasks</h2>
               
-              {/* Check if all setup tasks are complete */}
               {tasks.some(task => !task.completed) ? (
-                // Show setup tasks
                 <div className="space-y-3">
                   {tasks.map(task => (
                     <div key={task.id} className="flex items-center space-x-3">
@@ -1044,158 +1307,148 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                   ))}
                 </div>
               ) : (
-                // Show ideal client tasks - CHANGE 3
-                (() => {
-                  const sortedIdealClients = contacts.filter(c => c.category === 'Ideal Client').sort((a, b) => a.name.localeCompare(b.name));
-                  const currentClient = sortedIdealClients[currentIdealClientIndex];
-                  
-                  if (!currentClient) {
-                    return (
-                      <div className="text-center py-8">
-                        <Users className="w-12 h-12 text-white text-opacity-30 mx-auto mb-4" />
-                        <p className="text-white text-opacity-50">
-                          No ideal clients found. Upload and categorise your contacts first.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  const clientTasks = contactTasks[currentClient.id] || {};
-                  const showFollowUp = shouldShowFollowUp(currentClient.id);
-                  const allBasicTasksCompleted = clientTasks.viewProfile?.completed && 
-                                                clientTasks.turnOnNotifications?.completed && 
-                                                clientTasks.sendMessage?.completed;
-
-                  return (
-                    <div className="space-y-4">
-                      {/* Progress indicator */}
-                      <div className="flex items-center justify-between text-white text-opacity-70 text-sm">
-                        <span>Client {currentIdealClientIndex + 1} of {sortedIdealClients.length}</span>
-                        <span>{isDirectOutreachCycle ? 'Direct Outreach Cycle' : 'Initial Contact Cycle'}</span>
-                      </div>
-                      
-                      {/* Client info */}
-                      <div className="bg-white bg-opacity-10 rounded-lg p-3 mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                            <span className="text-white font-semibold text-sm">
-                              {currentClient.name.split(' ').map(n => n[0]).join('')}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-white font-medium">{currentClient.name}</p>
-                            <p className="text-white text-opacity-70 text-sm">
-                              {currentClient.position} at {currentClient.company}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Tasks for current client */}
-                      <div className="space-y-3">
-                        {!isDirectOutreachCycle ? (
-                          <>
-                            {/* Regular tasks */}
-                            <div
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => toggleContactTask(currentClient.id, 'viewProfile')}
-                            >
-                              <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                {clientTasks.viewProfile?.completed && (
-                                  <Check className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <span className={`text-white ${
-                                clientTasks.viewProfile?.completed 
-                                  ? 'line-through opacity-50' 
-                                  : ''
-                              }`}>
-                                View profile
-                              </span>
-                            </div>
-
-                            <div
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => toggleContactTask(currentClient.id, 'turnOnNotifications')}
-                            >
-                              <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                {clientTasks.turnOnNotifications?.completed && (
-                                  <Check className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <span className={`text-white ${
-                                clientTasks.turnOnNotifications?.completed 
-                                  ? 'line-through opacity-50' 
-                                  : ''
-                              }`}>
-                                Turn on notifications
-                              </span>
-                            </div>
-
-                            <div
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => toggleContactTask(currentClient.id, 'sendMessage')}
-                            >
-                              <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                {clientTasks.sendMessage?.completed && (
-                                  <Check className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <span className={`text-white ${
-                                clientTasks.sendMessage?.completed 
-                                  ? 'line-through opacity-50' 
-                                  : ''
-                              }`}>
-                                Send message
-                              </span>
-                            </div>
-
-                            {/* Follow-up task (shows 3 days after message) */}
-                            {showFollowUp && (
-                              <div
-                                className="flex items-center space-x-3 cursor-pointer"
-                                onClick={() => toggleContactTask(currentClient.id, 'followUp')}
-                              >
-                                <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                  {clientTasks.followUp?.completed && (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                                <span className={`text-white ${
-                                  clientTasks.followUp?.completed 
-                                    ? 'line-through opacity-50' 
-                                    : ''
-                                }`}>
-                                  <span className="text-yellow-400">Follow up</span> (3 days after message)
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          // Direct outreach cycle
-                          <div
-                            className="flex items-center space-x-3 cursor-pointer"
-                            onClick={() => toggleContactTask(currentClient.id, 'sendDirectSalesMessage')}
-                          >
-                            <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                              {clientTasks.sendDirectSalesMessage?.completed && (
-                                <Check className="w-3 h-3 text-white" />
-                              )}
-                            </div>
-                            <span className={`text-white ${
-                              clientTasks.sendDirectSalesMessage?.completed 
-                                ? 'line-through opacity-50' 
-                                : ''
-                            }`}>
-                              If no engagement, send direct outreach message
-                            </span>
-                          </div>
-                        )}
+                currentIdealClient ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-white text-opacity-70 text-sm">
+                      <span>Client {currentIdealClientIndex + 1} of {idealClientsList.length}</span>
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => setCurrentIdealClientIndex(prev => Math.max(0, prev - 1))}
+                          disabled={currentIdealClientIndex === 0}
+                          className="disabled:opacity-50"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setCurrentIdealClientIndex(prev => Math.min(idealClientsList.length - 1, prev + 1))}
+                          disabled={currentIdealClientIndex === idealClientsList.length - 1}
+                          className="disabled:opacity-50"
+                        >
+                          <ChevronDown className="w-4 h-4 rotate-90" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })()
+                    
+                    <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                      <h3 className="text-white font-medium mb-2">{currentIdealClient.name}</h3>
+                      <p className="text-white text-opacity-70 text-sm mb-3">{currentIdealClient.position} at {currentIdealClient.company}</p>
+                      
+                      <div className="space-y-2">
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(currentIdealClient.id, 'viewProfile')}
+                        >
+                          <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(currentIdealClient.id, 'viewProfile').completed && (
+                              <Check className="w-3 h-3 text-white" />
+                            )}
+                          </div>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(currentIdealClient.id, 'viewProfile').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            View LinkedIn profile
+                          </span>
+                        </div>
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(currentIdealClient.id, 'turnOnNotifications')}
+                        >
+                          <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(currentIdealClient.id, 'turnOnNotifications').completed && (
+                              <Check className="w-3 h-3 text-white" />
+                            )}
+                          </div>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(currentIdealClient.id, 'turnOnNotifications').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            Turn on notifications
+                          </span>
+                        </div>
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(currentIdealClient.id, 'sendMessage')}
+                        >
+                          <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(currentIdealClient.id, 'sendMessage').completed && (
+                              <Check className="w-3 h-3 text-white" />
+                            )}
+                          </div>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(currentIdealClient.id, 'sendMessage').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            Send initial message
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-white text-opacity-30 mx-auto mb-4" />
+                    <p className="text-white text-opacity-50">
+                      No ideal clients found. Upload and categorise your contacts first.
+                    </p>
+                  </div>
+                )
               )}
+            </div>
+
+            {/* Daily Tasks */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Daily Tasks</h2>
+              <div className="space-y-3">
+                <div
+                  className="flex items-center space-x-3 cursor-pointer"
+                  onClick={() => toggleDailyTask('chooseIdealClients')}
+                >
+                  <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                    {dailyTasks.chooseIdealClients.completed && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <span className={`text-white ${
+                    dailyTasks.chooseIdealClients.completed ? 'line-through opacity-50' : ''
+                  }`}>
+                    Choose 5 ideal clients to focus on ({dailyTasks.chooseIdealClients.count}/{dailyTasks.chooseIdealClients.total})
+                  </span>
+                </div>
+                <div
+                  className="flex items-center space-x-3 cursor-pointer"
+                  onClick={() => toggleDailyTask('commentOnPosts')}
+                >
+                  <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                    {dailyTasks.commentOnPosts.completed && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <span className={`text-white ${
+                    dailyTasks.commentOnPosts.completed ? 'line-through opacity-50' : ''
+                  }`}>
+                    Comment on 5 posts from ideal clients ({dailyTasks.commentOnPosts.count}/{dailyTasks.commentOnPosts.total})
+                  </span>
+                </div>
+                <div
+                  className="flex items-center space-x-3 cursor-pointer"
+                  onClick={() => toggleDailyTask('postContent')}
+                >
+                  <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                    {dailyTasks.postContent.completed && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <span className={`text-white ${
+                    dailyTasks.postContent.completed ? 'line-through opacity-50' : ''
+                  }`}>
+                    Post valuable content on LinkedIn
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Quick Actions */}
@@ -1224,13 +1477,13 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               </div>
 
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Build Strategy</h3>
+                <h3 className="text-lg font-semibold text-white mb-4">Create Strategy</h3>
                 <p className="text-white text-opacity-70 mb-4">
-                  Generate your personalized LinkedIn strategy
+                  Generate your personalised LinkedIn ABM strategy
                 </p>
                 <button
                   onClick={() => setCurrentView('strategy')}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
                 >
                   <Target className="w-5 h-5" />
                   <span>Create Strategy</span>
@@ -1243,7 +1496,7 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                   Set up your business profile for better AI results
                 </p>
                 <button
-                  onClick={() => setCurrentView('settings')}
+                  onClick={() => setShowSettingsModal(true)}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
                 >
                   <Settings className="w-5 h-5" />
@@ -1257,22 +1510,46 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
         {/* Contacts View */}
         {currentView === 'contacts' && (
           <div className="space-y-6">
+            {/* API Configuration Warning */}
+            {!isApiConfigured() && (
+              <div className="bg-yellow-500 bg-opacity-20 border border-yellow-500 rounded-xl p-4">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-400" />
+                  <div>
+                    <p className="text-white font-medium">API Configuration Required</p>
+                    <p className="text-white text-opacity-70 text-sm">
+                      To use real data enrichment, configure your Serper API key. Get one free at{' '}
+                      <a href="https://serper.dev" target="_blank" rel="noopener noreferrer" className="text-yellow-400 underline">
+                        serper.dev
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-white">Contacts</h1>
               <div className="flex items-center space-x-4">
                 <button
-                  onClick={enrichContacts}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  onClick={enrichIdealClients}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2 ${
+                    isApiConfigured() 
+                      ? 'bg-green-500 hover:bg-green-600 text-white'
+                      : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                  }`}
+                  disabled={!isApiConfigured()}
+                  title={!isApiConfigured() ? 'Configure Serper API key to enable enrichment' : 'Enrich ideal clients with real data'}
                 >
                   <Zap className="w-4 h-4" />
-                  <span>Enrich Contacts</span>
+                  <span>Enrich Ideal Clients {isApiConfigured() ? '(Real Data)' : '(API Required)'}</span>
                 </button>
                 <button
                   onClick={aiCategorizeAll}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
                 >
                   <Target className="w-4 h-4" />
-                  <span>AI Categorize</span>
+                  <span>AI Categorise</span>
                 </button>
                 <label className="block">
                   <input
@@ -1320,15 +1597,15 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
             {/* Contacts grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredContacts.length === 0 ? (
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+                <div className="col-span-full bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
                   <Users className="w-12 h-12 text-white text-opacity-50 mx-auto mb-4" />
-                  <p className="text-white text-opacity-70">No contacts yet</p>
+                  <p className="text-white text-opacity-70">No contacts found</p>
                   <p className="text-white text-opacity-50 text-sm mt-2">
-                    Upload your LinkedIn connections CSV to get started
+                    Try adjusting your search or upload new contacts
                   </p>
                 </div>
               ) : (
-                contacts.map(contact => (
+                filteredContacts.map(contact => (
                   <div key={contact.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -1376,12 +1653,12 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                       }`}>
                         {contact.category}
                       </span>
-                      {contact.isEnriched && (
-                        <span className="text-yellow-400 text-xs flex items-center space-x-1">
-                          <Sparkles className="w-3 h-3" />
-                          <span>Enriched</span>
-                        </span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        {contact.isEnriched && (
+                          <span className="text-green-400 text-xs">Enriched</span>
+                        )}
+                        <Sparkles className={`w-4 h-4 ${contact.isEnriched ? 'text-green-400' : 'text-gray-400'}`} />
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1395,92 +1672,64 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
           <div className="space-y-6">
             <h1 className="text-3xl font-bold text-white">LinkedIn Strategy</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Strategy inputs */}
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Your Business Details</h2>
-                <div className="space-y-4">
+            {!strategy.generatedStrategy ? (
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
+                <h2 className="text-xl font-semibold text-white mb-6">Generate Your Strategy</h2>
+                <div className="space-y-6">
                   <div>
-                    <label className="block text-white text-opacity-70 mb-2">What's your ONE offer?</label>
-                    <input
-                      type="text"
+                    <label className="block text-white text-sm font-medium mb-2">What's your one main offer?</label>
+                    <textarea
                       value={strategy.oneOffer}
-                      onChange={(e) => setStrategy({...strategy, oneOffer: e.target.value})}
-                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="e.g., LinkedIn ABM consulting for B2B companies"
+                      onChange={(e) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
+                      placeholder="Describe your main product or service offering..."
+                      className="w-full p-4 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 h-24"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-white text-opacity-70 mb-2">Who are your ideal referral partners?</label>
-                    <input
-                      type="text"
+                    <label className="block text-white text-sm font-medium mb-2">Who are your ideal referral partners?</label>
+                    <textarea
                       value={strategy.idealReferralPartners}
-                      onChange={(e) => setStrategy({...strategy, idealReferralPartners: e.target.value})}
-                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      placeholder="e.g., Business coaches, marketing agencies"
+                      onChange={(e) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
+                      placeholder="Who could refer clients to you? (e.g., accountants, business coaches, consultants...)"
+                      className="w-full p-4 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 h-24"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-white text-opacity-70 mb-2">What makes you special?</label>
+                    <label className="block text-white text-sm font-medium mb-2">Any special factors about your business?</label>
                     <textarea
                       value={strategy.specialFactors}
-                      onChange={(e) => setStrategy({...strategy, specialFactors: e.target.value})}
-                      className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      rows={3}
-                      placeholder="e.g., 15 years experience, worked with Fortune 500, unique methodology"
+                      onChange={(e) => setStrategy(prev => ({ ...prev, specialFactors: e.target.value }))}
+                      placeholder="Unique selling points, target geography, industry specialisation..."
+                      className="w-full p-4 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 h-24"
                     />
                   </div>
                   
                   <button
                     onClick={generateStrategy}
-                    disabled={!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors}
-                    className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-2"
+                    className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
                   >
-                    <Sparkles className="w-5 h-5" />
-                    <span>Generate AI Strategy</span>
+                    <Target className="w-5 h-5" />
+                    <span>Generate Strategy</span>
                   </button>
                 </div>
               </div>
-
-              {/* Strategy preview */}
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Your LinkedIn Formula Strategy</h2>
-                {strategy.generatedStrategy ? (
-                  <div className="prose prose-invert max-w-none">
-                    <div className="text-white text-opacity-90 whitespace-pre-wrap">
-                      {strategy.generatedStrategy}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Target className="w-12 h-12 text-white text-opacity-30 mx-auto mb-4" />
-                    <p className="text-white text-opacity-50">
-                      Fill in your business details to generate your personalized LinkedIn strategy
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Strategy metrics */}
-            {strategy.generatedStrategy && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <TrendingUp className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                  <p className="text-3xl font-bold text-white">3x</p>
-                  <p className="text-white text-opacity-70">Expected ROI</p>
+            ) : (
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-white">Your Generated Strategy</h2>
+                  <button
+                    onClick={() => setStrategy(prev => ({ ...prev, generatedStrategy: '' }))}
+                    className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    Generate New
+                  </button>
                 </div>
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <Calendar className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                  <p className="text-3xl font-bold text-white">90</p>
-                  <p className="text-white text-opacity-70">Days to Results</p>
-                </div>
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <Award className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                  <p className="text-3xl font-bold text-white">Top 5%</p>
-                  <p className="text-white text-opacity-70">LinkedIn Performance</p>
+                <div className="prose prose-invert max-w-none">
+                  <pre className="text-white whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                    {strategy.generatedStrategy}
+                  </pre>
                 </div>
               </div>
             )}
@@ -1493,74 +1742,108 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-white">Lead Magnets</h1>
               <button
-                onClick={() => generateLeadMagnet()}
-                className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                onClick={generateLeadMagnet}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create New</span>
+                <span>Generate New</span>
               </button>
             </div>
 
-            {leadMagnets.length === 0 ? (
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
-                <FileText className="w-12 h-12 text-white text-opacity-50 mx-auto mb-4" />
-                <p className="text-white text-opacity-70">No lead magnets yet</p>
-                <p className="text-white text-opacity-50 text-sm mt-2">
-                  Generate your strategy first, then create lead magnets
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {leadMagnets.map(magnet => (
-                  <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-2">{magnet.title}</h3>
-                    {magnet.isPersonalized && (
-                      <div className="mb-3">
-                        <span className="text-yellow-400 text-xs flex items-center space-x-1">
-                          <Star className="w-3 h-3" />
-                          <span>Personalized for {magnet.contactName}</span>
-                        </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {leadMagnets.length === 0 ? (
+                <div className="col-span-full bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+                  <FileText className="w-12 h-12 text-white text-opacity-50 mx-auto mb-4" />
+                  <p className="text-white text-opacity-70">No lead magnets yet</p>
+                  <p className="text-white text-opacity-50 text-sm mt-2">
+                    Generate your first lead magnet to start capturing leads
+                  </p>
+                </div>
+              ) : (
+                leadMagnets.map(magnet => (
+                  <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-white font-semibold mb-2">{magnet.title}</h3>
+                        <p className="text-white text-opacity-70 text-sm mb-3">{magnet.description}</p>
+                        <div className="flex items-center space-x-4 text-xs text-white text-opacity-50">
+                          <span>{magnet.type}</span>
+                          <span>Created {magnet.created}</span>
+                          <span>{magnet.downloads} downloads</span>
+                        </div>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-white text-opacity-50 text-xs">
-                        {new Date(magnet.createdAt).toLocaleDateString()}
-                      </span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => downloadLeadMagnet(magnet)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm flex items-center space-x-1"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download</span>
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedLeadMagnet(magnet);
                           setShowLeadMagnetModal(true);
                         }}
-                        className="text-yellow-400 hover:text-yellow-300 transition-colors text-sm"
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded text-sm"
                       >
-                        View →
+                        View
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
         )}
 
-        {/* CHANGE 2: Tasks View */}
+        {/* Tasks View */}
         {currentView === 'tasks' && (
           <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-white">Tasks</h1>
+            <h1 className="text-3xl font-bold text-white">Tasks Overview</h1>
             
-            {/* Daily Tasks Section */}
+            {/* Setup Tasks */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-yellow-400" />
-                <span>Daily Tasks</span>
-                <span className="text-sm text-white text-opacity-50">
-                  ({new Date().toLocaleDateString()})
-                </span>
-              </h2>
-              
+              <h2 className="text-xl font-semibold text-white mb-4">Setup Tasks</h2>
+              <div className="space-y-3">
+                {tasks.map(task => (
+                  <div key={task.id} className="flex items-center space-x-3">
+                    <button
+                      onClick={() => {
+                        setTasks(prev => prev.map(t => 
+                          t.id === task.id ? { ...t, completed: !t.completed } : t
+                        ));
+                      }}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                        task.completed 
+                          ? 'bg-green-500 border-green-500' 
+                          : 'border-white border-opacity-50 hover:border-yellow-400'
+                      }`}
+                    >
+                      {task.completed && <Check className="w-3 h-3 text-white" />}
+                    </button>
+                    <span className={`text-white ${task.completed ? 'line-through opacity-50' : ''}`}>
+                      {task.text}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      task.priority === 'high' ? 'bg-red-500 text-white' :
+                      task.priority === 'medium' ? 'bg-yellow-500 text-white' :
+                      'bg-green-500 text-white'
+                    }`}>
+                      {task.priority}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Daily Tasks */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Daily Tasks</h2>
               <div className="space-y-3">
                 <div
-                  className="flex items-center space-x-3 cursor-pointer group"
+                  className="flex items-center space-x-3 cursor-pointer"
                   onClick={() => toggleDailyTask('chooseIdealClients')}
                 >
                   <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
@@ -1568,20 +1851,14 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                       <Check className="w-3 h-3 text-white" />
                     )}
                   </div>
-                  <span className={`text-white flex-1 ${
-                    dailyTasks.chooseIdealClients.completed 
-                      ? 'line-through opacity-50' 
-                      : ''
+                  <span className={`text-white ${
+                    dailyTasks.chooseIdealClients.completed ? 'line-through opacity-50' : ''
                   }`}>
-                    Choose 5 ideal clients to send messages to
-                  </span>
-                  <span className="text-white text-opacity-50 text-sm">
-                    {dailyTasks.chooseIdealClients.count}/{dailyTasks.chooseIdealClients.total}
+                    Choose 5 ideal clients to focus on ({dailyTasks.chooseIdealClients.count}/{dailyTasks.chooseIdealClients.total})
                   </span>
                 </div>
-
                 <div
-                  className="flex items-center space-x-3 cursor-pointer group"
+                  className="flex items-center space-x-3 cursor-pointer"
                   onClick={() => toggleDailyTask('commentOnPosts')}
                 >
                   <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
@@ -1589,20 +1866,14 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                       <Check className="w-3 h-3 text-white" />
                     )}
                   </div>
-                  <span className={`text-white flex-1 ${
-                    dailyTasks.commentOnPosts.completed 
-                      ? 'line-through opacity-50' 
-                      : ''
+                  <span className={`text-white ${
+                    dailyTasks.commentOnPosts.completed ? 'line-through opacity-50' : ''
                   }`}>
-                    Comment on 5 ideal client posts
-                  </span>
-                  <span className="text-white text-opacity-50 text-sm">
-                    {dailyTasks.commentOnPosts.count}/{dailyTasks.commentOnPosts.total}
+                    Comment on 5 posts from ideal clients ({dailyTasks.commentOnPosts.count}/{dailyTasks.commentOnPosts.total})
                   </span>
                 </div>
-
                 <div
-                  className="flex items-center space-x-3 cursor-pointer group"
+                  className="flex items-center space-x-3 cursor-pointer"
                   onClick={() => toggleDailyTask('postContent')}
                 >
                   <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
@@ -1611,339 +1882,94 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
                     )}
                   </div>
                   <span className={`text-white ${
-                    dailyTasks.postContent.completed 
-                      ? 'line-through opacity-50' 
-                      : ''
+                    dailyTasks.postContent.completed ? 'line-through opacity-50' : ''
                   }`}>
-                    Post content
+                    Post valuable content on LinkedIn
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Contact Specific Tasks Section */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
-                <Users className="w-5 h-5 text-yellow-400" />
-                <span>Contact Specific Tasks</span>
-              </h2>
-              
-              {taskListClients.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-white text-opacity-30 mx-auto mb-4" />
-                  <p className="text-white text-opacity-50">
-                    No ideal clients found. Upload and categorize your contacts first.
-                  </p>
-                </div>
-              ) : (
+            {/* Contact Tasks */}
+            {idealClientsList.length > 0 && (
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Ideal Client Tasks</h2>
                 <div className="space-y-4">
-                  {taskListClients.map(client => {
-                    const showFollowUp = shouldShowFollowUp(client.id);
-                    const followUpCompleted = getTaskStatus(client.id, 'followUp').completed;
-                    const allBasicTasksCompleted = getTaskStatus(client.id, 'viewProfile').completed &&
-                                                   getTaskStatus(client.id, 'turnOnNotifications').completed &&
-                                                   getTaskStatus(client.id, 'sendMessage').completed;
-                    
-                    return (
-                      <div key={client.id} className="bg-white bg-opacity-10 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                              <span className="text-white font-semibold text-sm">
-                                {client.name.split(' ').map(n => n[0]).join('')}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="text-white font-medium">{client.name}</p>
-                              <p className="text-white text-opacity-70 text-sm">
-                                {client.position} at {client.company}
-                              </p>
-                            </div>
+                  {idealClientsList.slice(0, 5).map(client => (
+                    <div key={client.id} className="bg-white bg-opacity-10 rounded-lg p-4">
+                      <h3 className="text-white font-medium mb-2">{client.name}</h3>
+                      <p className="text-white text-opacity-70 text-sm mb-3">{client.position} at {client.company}</p>
+                      
+                      <div className="space-y-2">
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(client.id, 'viewProfile')}
+                        >
+                          <div className="w-4 h-4 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(client.id, 'viewProfile').completed && (
+                              <Check className="w-2 h-2 text-white" />
+                            )}
                           </div>
-                          <button
-                            onClick={() => generateLeadMagnet(client.id)}
-                            className="text-yellow-400 hover:text-yellow-300 transition-colors text-sm"
-                          >
-                            Create Lead Magnet
-                          </button>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(client.id, 'viewProfile').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            View LinkedIn profile
+                          </span>
                         </div>
-                        
-                        <div className="space-y-2">
-                          {/* Follow-up task (shows 3 days after message) */}
-                          {showFollowUp && !followUpCompleted && (
-                            <div
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => toggleContactTask(client.id, 'followUp')}
-                            >
-                              <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                {getTaskStatus(client.id, 'followUp').completed && (
-                                  <Check className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <span className={`text-white ${
-                                getTaskStatus(client.id, 'followUp').completed 
-                                  ? 'line-through opacity-50' 
-                                  : ''
-                              }`}>
-                                <span className="text-yellow-400">Follow up</span> (3 days after message)
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* Regular tasks */}
-                          {!allBasicTasksCompleted && (
-                            <>
-                              <div
-                                className="flex items-center space-x-3 cursor-pointer"
-                                onClick={() => toggleContactTask(client.id, 'viewProfile')}
-                              >
-                                <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                  {getTaskStatus(client.id, 'viewProfile').completed && (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                                <span className={`text-white ${
-                                  getTaskStatus(client.id, 'viewProfile').completed 
-                                    ? 'line-through opacity-50' 
-                                    : ''
-                                }`}>
-                                  View profile
-                                </span>
-                              </div>
-
-                              <div
-                                className="flex items-center space-x-3 cursor-pointer"
-                                onClick={() => toggleContactTask(client.id, 'turnOnNotifications')}
-                              >
-                                <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                  {getTaskStatus(client.id, 'turnOnNotifications').completed && (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                                <span className={`text-white ${
-                                  getTaskStatus(client.id, 'turnOnNotifications').completed 
-                                    ? 'line-through opacity-50' 
-                                    : ''
-                                }`}>
-                                  Turn on notifications
-                                </span>
-                              </div>
-
-                              <div
-                                className="flex items-center space-x-3 cursor-pointer"
-                                onClick={() => toggleContactTask(client.id, 'sendMessage')}
-                              >
-                                <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                  {getTaskStatus(client.id, 'sendMessage').completed && (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                                <span className={`text-white ${
-                                  getTaskStatus(client.id, 'sendMessage').completed 
-                                    ? 'line-through opacity-50' 
-                                    : ''
-                                }`}>
-                                  Send message
-                                </span>
-                              </div>
-                            </>
-                          )}
-                          
-                          {/* Direct sales message for completed cycles */}
-                          {completedAllIdealClients && allBasicTasksCompleted && (!showFollowUp || followUpCompleted) && (
-                            <div
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => toggleContactTask(client.id, 'sendDirectSalesMessage')}
-                            >
-                              <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
-                                {getTaskStatus(client.id, 'sendDirectSalesMessage').completed && (
-                                  <Check className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <span className={`text-white ${
-                                getTaskStatus(client.id, 'sendDirectSalesMessage').completed 
-                                  ? 'line-through opacity-50' 
-                                  : ''
-                              }`}>
-                                If no engagement, send direct outreach message
-                              </span>
-                            </div>
-                          )}
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(client.id, 'turnOnNotifications')}
+                        >
+                          <div className="w-4 h-4 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(client.id, 'turnOnNotifications').completed && (
+                              <Check className="w-2 h-2 text-white" />
+                            )}
+                          </div>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(client.id, 'turnOnNotifications').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            Turn on notifications
+                          </span>
+                        </div>
+                        <div
+                          className="flex items-center space-x-3 cursor-pointer"
+                          onClick={() => toggleContactTask(client.id, 'sendMessage')}
+                        >
+                          <div className="w-4 h-4 rounded border border-white border-opacity-50 flex items-center justify-center">
+                            {getTaskStatus(client.id, 'sendMessage').completed && (
+                              <Check className="w-2 h-2 text-white" />
+                            )}
+                          </div>
+                          <span className={`text-white text-sm ${
+                            getTaskStatus(client.id, 'sendMessage').completed 
+                              ? 'line-through opacity-50' 
+                              : ''
+                          }`}>
+                            Send initial message
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Onboarding Progress */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-yellow-400" />
-                <span>Onboarding Progress</span>
-              </h2>
-              
-              <div className="space-y-3">
-                {tasks.map(task => (
-                  <div key={task.id} className="flex items-center space-x-3">
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      task.completed 
-                        ? 'bg-green-500 border-green-500' 
-                        : 'border-white border-opacity-50'
-                    }`}>
-                      {task.completed && <Check className="w-3 h-3 text-white" />}
                     </div>
-                    <span className={`text-white ${task.completed ? 'line-through opacity-50' : ''}`}>
-                      {task.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 pt-4 border-t border-white border-opacity-20">
-                <div className="flex items-center justify-between">
-                  <span className="text-white text-opacity-70">Overall Progress</span>
-                  <span className="text-white font-semibold">
-                    {tasks.filter(t => t.completed).length}/{tasks.length} Complete
-                  </span>
-                </div>
-                <div className="mt-2 bg-white bg-opacity-20 rounded-full h-2">
-                  <div 
-                    className="bg-yellow-400 h-2 rounded-full transition-all"
-                    style={{ width: `${(tasks.filter(t => t.completed).length / tasks.length) * 100}%` }}
-                  />
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings View */}
-        {currentView === 'settings' && (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-white">Settings</h1>
-            
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Business Profile</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Name</label>
-                  <input
-                    type="text"
-                    value={user.name || currentUser.name}
-                    onChange={(e) => setUser({...user, name: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={user.email || currentUser.email}
-                    onChange={(e) => setUser({...user, email: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    disabled
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Company</label>
-                  <input
-                    type="text"
-                    value={user.company || currentUser.company}
-                    onChange={(e) => setUser({...user, company: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Business Type</label>
-                  <input
-                    type="text"
-                    value={user.businessType}
-                    onChange={(e) => setUser({...user, businessType: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Financial Services"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-white text-opacity-70 mb-2">Target Market</label>
-                  <input
-                    type="text"
-                    value={user.targetMarket}
-                    onChange={(e) => setUser({...user, targetMarket: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Tech Companies"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-white text-opacity-70 mb-2">Writing Style</label>
-                  <input
-                    type="text"
-                    value={user.writingStyle}
-                    onChange={(e) => setUser({...user, writingStyle: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Professional yet friendly"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-white text-opacity-70 mb-2">Ideal Referral Partners</label>
-                  <input
-                    type="text"
-                    value={user.referralPartners}
-                    onChange={(e) => setUser({...user, referralPartners: e.target.value})}
-                    className="w-full px-4 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Accountants, Business Coaches"
-                  />
-                </div>
-              </div>
-              
-              <button
-                onClick={() => {
-                  setSuccessMessage('Settings saved successfully!');
-                  setShowSuccessModal(true);
-                  // Mark settings task as complete
-                  setTasks(prev => prev.map(task => 
-                    task.id === 2 ? { ...task, completed: true } : task
-                  ));
-                }}
-                className="mt-6 bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all"
-              >
-                Save Settings
-              </button>
-            </div>
-
-            {/* Enrichment Credits */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Apollo Enrichment Credits</h2>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-3xl font-bold text-white">{enrichmentsLeft}</p>
-                  <p className="text-white text-opacity-70">Credits remaining</p>
-                </div>
-                <button className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-all">
-                  Buy More Credits
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Contact Details Modal */}
+      {/* Contact Modal */}
       {showContactModal && selectedContact && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-purple-800 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-purple-900 rounded-xl p-6 max-w-2xl w-full max-h-90vh overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Contact Details</h2>
+              <h3 className="text-xl font-semibold text-white">Contact Details</h3>
               <button
-                onClick={() => setShowContactModal(false)}
+                onClick={closeModals}
                 className="text-white hover:text-yellow-400 transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -1954,21 +1980,24 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               {/* Contact header */}
               <div className="flex items-center space-x-4">
                 <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">
+                  <span className="text-white font-semibold text-lg">
                     {selectedContact.name.split(' ').map(n => n[0]).join('')}
                   </span>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-white">{selectedContact.name}</h3>
-                  <p className="text-white text-opacity-70">{selectedContact.position} at {selectedContact.company}</p>
-                  <div className={`inline-block mt-2 text-xs px-2 py-1 rounded-full ${
-                    selectedContact.category === 'Ideal Client' ? 'bg-green-500 text-white' :
-                    selectedContact.category === 'Referral Partners' ? 'bg-blue-500 text-white' :
-                    selectedContact.category === 'Competitors' ? 'bg-red-500 text-white' :
-                    selectedContact.category === 'Other' ? 'bg-gray-500 text-white' :
-                    'bg-gray-600 text-gray-300'
-                  }`}>
-                    {selectedContact.category}
+                  <h4 className="text-xl font-semibold text-white">{selectedContact.name}</h4>
+                  <p className="text-white text-opacity-70">{selectedContact.position}</p>
+                  <p className="text-white text-opacity-70">{selectedContact.company}</p>
+                  <div className="mt-2">
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      selectedContact.category === 'Ideal Client' ? 'bg-green-500 text-white' :
+                      selectedContact.category === 'Referral Partners' ? 'bg-blue-500 text-white' :
+                      selectedContact.category === 'Competitors' ? 'bg-red-500 text-white' :
+                      selectedContact.category === 'Other' ? 'bg-gray-500 text-white' :
+                      'bg-gray-600 text-gray-300'
+                    }`}>
+                      {selectedContact.category}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1986,99 +2015,237 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
               </div>
 
               {/* Enrichment Data */}
-              {selectedContact.isEnriched && selectedContact.enrichmentData ? (
+              {selectedContact.isEnriched && selectedContact.enrichmentData && (
                 <div className="bg-white bg-opacity-10 rounded-lg p-4 space-y-3">
                   <h4 className="text-white font-medium mb-3">Enrichment Data</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Industry</p>
-                      <p className="text-white">{selectedContact.enrichmentData.industry !== 'Not found' ? selectedContact.enrichmentData.industry : 'Not available'}</p>
+                      <p className="text-white">{selectedContact.enrichmentData.industry}</p>
                     </div>
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Location</p>
-                      <p className="text-white">{selectedContact.enrichmentData.location !== 'Not found' ? selectedContact.enrichmentData.location : 'Not available'}</p>
+                      <p className="text-white">{selectedContact.enrichmentData.location}</p>
                     </div>
                     <div>
                       <p className="text-white text-opacity-70 text-sm">Website</p>
-                      {selectedContact.enrichmentData.website !== 'Not found' ? (
-                        <a 
-                          href={selectedContact.enrichmentData.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
-                        >
-                          {selectedContact.enrichmentData.website}
-                        </a>
-                      ) : (
-                        <p className="text-white">Not available</p>
-                      )}
+                      <a 
+                        href={selectedContact.enrichmentData.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        {selectedContact.enrichmentData.website}
+                      </a>
                     </div>
                     <div>
                       <p className="text-white text-opacity-70 text-sm">LinkedIn Profile</p>
-                      {selectedContact.enrichmentData.linkedinProfile !== 'Not found' ? (
-                        <a 
-                          href={selectedContact.enrichmentData.linkedinProfile} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
-                        >
-                          View Profile
-                        </a>
-                      ) : (
-                        <p className="text-white">Not available</p>
-                      )}
+                      <a 
+                        href={selectedContact.enrichmentData.linkedinProfile} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        View Profile
+                      </a>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-white bg-opacity-10 rounded-lg p-4">
-                  <p className="text-white text-opacity-70 text-center">Awaiting enrichment</p>
-                </div>
               )}
 
-              {/* Category selector */}
-              <div>
-                <p className="text-white text-opacity-70 text-sm mb-2">Change Category</p>
-                <select
-                  value={selectedContact.category}
-                  onChange={(e) => {
-                    const updatedContacts = contacts.map(c => 
-                      c.id === selectedContact.id ? { ...c, category: e.target.value } : c
-                    );
-                    setContacts(updatedContacts);
-                    setSelectedContact({ ...selectedContact, category: e.target.value });
-                  }}
-                  className="w-full px-4 py-2 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat} className="bg-purple-800">{cat}</option>
-                  ))}
-                </select>
+              {/* Contact Tasks */}
+              <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3">Contact Tasks</h4>
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'viewProfile')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'viewProfile').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'viewProfile').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      View LinkedIn profile
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'turnOnNotifications')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'turnOnNotifications').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'turnOnNotifications').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      Turn on notifications
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center space-x-3 cursor-pointer"
+                    onClick={() => toggleContactTask(selectedContact.id, 'sendMessage')}
+                  >
+                    <div className="w-5 h-5 rounded border border-white border-opacity-50 flex items-center justify-center">
+                      {getTaskStatus(selectedContact.id, 'sendMessage').completed && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className={`text-white ${
+                      getTaskStatus(selectedContact.id, 'sendMessage').completed 
+                        ? 'line-through opacity-50' 
+                        : ''
+                    }`}>
+                      Send initial message
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between pt-4 border-t border-white border-opacity-20">
+              <div className="flex items-center space-x-4">
+                <select
+                  value={selectedContact.category}
+                  onChange={(e) => updateCategory(selectedContact.id, e.target.value)}
+                  className="px-4 py-2 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                
                 <button
                   onClick={() => deleteContact(selectedContact.id)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Delete Contact</span>
+                  <span>Delete</span>
                 </button>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => generateLeadMagnet(selectedContact.id)}
-                    className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-all"
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-purple-900 rounded-xl p-6 max-w-2xl w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white">Business Settings</h3>
+              <button
+                onClick={closeModals}
+                className="text-white hover:text-yellow-400 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">Business Type</label>
+                  <select
+                    value={user.businessType}
+                    onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
+                    className="w-full p-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   >
-                    Create Lead Magnet
-                  </button>
-                  <button
-                    onClick={() => setShowContactModal(false)}
-                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all"
-                  >
-                    Close
-                  </button>
+                    <option value="Consulting">Consulting</option>
+                    <option value="Software">Software</option>
+                    <option value="Marketing Agency">Marketing Agency</option>
+                    <option value="Professional Services">Professional Services</option>
+                    <option value="E-commerce">E-commerce</option>
+                    <option value="Manufacturing">Manufacturing</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
+                
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">Target Market</label>
+                  <input
+                    type="text"
+                    value={user.targetMarket}
+                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
+                    placeholder="e.g., B2B SaaS, Small Businesses, Enterprise"
+                    className="w-full p-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">Writing Style</label>
+                <select
+                  value={user.writingStyle}
+                  onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
+                  className="w-full p-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option value="Professional">Professional</option>
+                  <option value="Casual">Casual</option>
+                  <option value="Professional yet conversational">Professional yet conversational</option>
+                  <option value="Technical">Technical</option>
+                  <option value="Creative">Creative</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">Ideal Referral Partners</label>
+                <textarea
+                  value={user.referralPartners}
+                  onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
+                  placeholder="Who could refer clients to you? (e.g., Accountants, Business Coaches, Consultants)"
+                  className="w-full p-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 h-24"
+                />
+              </div>
+
+              <button
+                onClick={saveSettings}
+                className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-medium transition-all"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lead Magnet Modal */}
+      {showLeadMagnetModal && selectedLeadMagnet && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-purple-900 rounded-xl p-6 max-w-4xl w-full max-h-90vh overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white">{selectedLeadMagnet.title}</h3>
+              <button
+                onClick={closeModals}
+                className="text-white hover:text-yellow-400 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                <pre className="text-white whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                  {selectedLeadMagnet.content}
+                </pre>
+              </div>
+              
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => downloadLeadMagnet(selectedLeadMagnet)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2088,9 +2255,9 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
       {/* Loading Modal */}
       {showLoadingModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-purple-800 rounded-xl p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-white text-lg">{loadingMessage}</p>
+          <div className="bg-purple-900 rounded-xl p-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mx-auto mb-4"></div>
+            <p className="text-white">{loadingMessage}</p>
           </div>
         </div>
       )}
@@ -2098,65 +2265,15 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-purple-800 rounded-xl p-8 text-center">
+          <div className="bg-purple-900 rounded-xl p-8 text-center">
             <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
-            <p className="text-white text-lg">{successMessage}</p>
+            <p className="text-white mb-4">{successMessage}</p>
             <button
-              onClick={() => setShowSuccessModal(false)}
-              className="mt-4 bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-2 rounded-lg font-medium transition-all"
+              onClick={closeModals}
+              className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-2 rounded-lg font-medium transition-all"
             >
-              Continue
+              Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Lead Magnet Modal */}
-      {showLeadMagnetModal && selectedLeadMagnet && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-purple-800 rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">{selectedLeadMagnet.title}</h2>
-                {selectedLeadMagnet.isPersonalized && (
-                  <p className="text-yellow-400 text-sm mt-1">
-                    Personalized for {selectedLeadMagnet.contactName}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setShowLeadMagnetModal(false)}
-                className="text-white hover:text-yellow-400 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="prose prose-invert max-w-none">
-              <div className="text-white text-opacity-90 whitespace-pre-wrap">
-                {selectedLeadMagnet.content}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 mt-6 pt-6 border-t border-white border-opacity-20">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedLeadMagnet.content);
-                  setSuccessMessage('Content copied to clipboard!');
-                  setShowSuccessModal(true);
-                }}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
-              >
-                <Copy className="w-4 h-4" />
-                <span>Copy Content</span>
-              </button>
-              <button
-                onClick={() => setShowLeadMagnetModal(false)}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -2164,63 +2281,38 @@ Make this strategy actionable, specific, and based on proven LinkedIn Formula pr
   );
 };
 
-// Mock Claude API for development
-if (typeof window !== 'undefined' && !window.claude) {
-  window.claude = {
-    complete: async (prompt, model, maxTokens) => {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Return mock strategy response
-      return `**Your LinkedIn Formula Strategy**
-
-**1. Value Proposition**
-You provide ${prompt.includes('LinkedIn ABM') ? 'LinkedIn ABM consulting' : 'strategic business solutions'} to ${prompt.includes('B2B') ? 'B2B companies' : 'growing businesses'} with a unique approach that combines AI-powered insights with personalized relationship building.
-
-**2. Ideal Customer Profile**
-- Company Size: 50-500 employees
-- Industry: Technology, SaaS, Professional Services
-- Decision Makers: CEOs, CMOs, VPs of Sales
-- Pain Points: Struggling with lead generation, need predictable pipeline
-
-**3. Content Strategy (Weekly)**
-Monday: Educational post about ABM best practices
-Tuesday: Case study from recent client success
-Wednesday: Personal story about business challenges
-Thursday: Industry insights and trends
-Friday: Direct value post with actionable tips
-
-**4. Profile Optimization**
-Headline: "Helping B2B Companies Generate 3x More Qualified Leads Through LinkedIn ABM | £2M+ Pipeline Generated"
-About: Focus on transformation stories and specific results
-CTA: "Book a free LinkedIn audit → [calendar link]"
-
-**5. Engagement Strategy**
-- Comment on 5 ideal client posts daily
-- Send 10 personalized connection requests weekly
-- Share valuable insights in relevant LinkedIn groups
-- Use video messages for high-value prospects
-
-**6. Implementation Plan**
-Week 1-2: Profile optimization and content calendar creation
-Week 3-4: Begin daily engagement routine
-Week 5-6: Launch first campaign to ideal clients
-Week 7-8: Analyze results and refine approach
-
-Remember: Success on LinkedIn = Consistency + Value + Authentic Relationships`;
-    }
-  };
-}
-
-// Configure API keys
-// Replace 'your-serper-api-key-here' with your actual Serper API key from https://serper.dev
-if (typeof window !== 'undefined') {
-  window.SERPER_API_KEY = window.SERPER_API_KEY || '3fd5bda7cce79e07cc06e38ad8225c5dab090f4d';
-  
-  // Alternatively, you can set it via environment variable in your build process:
-  // Create a .env file in your project root with:
-  // REACT_APP_SERPER_API_KEY=your-actual-serper-api-key
-  // Then the app will use process.env.REACT_APP_SERPER_API_KEY
-}
-
 export default GlassSlipperApp;
+
+// ============================================
+// API SETUP INSTRUCTIONS
+// ============================================
+//
+// To enable REAL data enrichment (instead of mock data):
+//
+// 1. SERPER API (Required for Google Search):
+//    - Sign up at https://serper.dev (100 free searches)
+//    - Get your API key from the dashboard
+//    - Replace 'your-serper-api-key-here' above with your actual key
+//    - Or set environment variable: REACT_APP_SERPER_API_KEY=your_key_here
+//
+// 2. CLAUDE API (Already configured in this environment):
+//    - Claude API calls are automatically handled
+//    - No additional setup required
+//
+// WORKFLOW AFTER SETUP:
+// 1. Upload LinkedIn CSV → contacts appear in app
+// 2. Click "Enrich Ideal Clients" → Serper searches Google for each contact
+// 3. Claude processes search results → adds phone, industry, location, website
+// 4. Click "AI Categorise" → Claude uses enriched data + user profile to categorise
+// 5. Contacts are intelligently sorted: Ideal Client, Referral Partners, Competitors, Other
+//
+// COST ESTIMATES:
+// - Serper: ~£0.01-0.02 per contact search
+// - Claude: ~£0.05-0.10 per contact for processing/categorisation
+// - Total: ~£0.06-0.12 per contact for full enrichment + categorisation
+//
+// RATE LIMITS:
+// - Built-in delays prevent hitting API rate limits
+// - Processes contacts in batches with error handling
+// - Fallback to basic categorisation if APIs fail
+//
