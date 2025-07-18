@@ -1,84 +1,55 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, X, Loader, Star, Globe, Phone, MapPin, ExternalLink, Play, Pause } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, ChevronRight, X, MessageSquare, Copy } from 'lucide-react';
 
-const GlassSlipperApp = () => {
-  // Authentication state
+export default function GlassSlipperApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authView, setAuthView] = useState('landing'); // landing, login, register
-  const [authForm, setAuthForm] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    company: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // User state
-  const [user, setUser] = useState({
-    name: '',
-    email: '',
-    company: '',
-    businessType: '',
-    targetMarket: '',
-    writingStyle: '',
-    referralPartners: ''
-  });
-
-  // Current user (for display purposes)
-  const currentUser = {
-    name: 'Adam Jones',
-    company: 'Demo Company',
-    email: 'adam@demo.com'
-  };
-
-  // App state
-  const [currentView, setCurrentView] = useState('dashboard');
+  const [currentView, setCurrentView] = useState('login');
+  const [selectedContact, setSelectedContact] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [contacts, setContacts] = useState([
-    {
-      id: 1,
-      name: 'Nick Teige',
-      company: 'Franklyn',
-      position: 'Wealth Manager',
-      phone: 'Search failed',
-      category: 'Uncategorised',
-      isEnriched: true,
-      enrichmentData: {
-        industry: 'Wealth Management - Financial Advice',
-        location: 'Cheshire',
-        website: 'https://franklyn.co.uk/',
-        linkedinProfile: ''
-      }
-    }
-  ]);
-
-  // Contact form state
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    company: '',
-    position: '',
-    phone: '',
-    linkedinProfile: ''
-  });
-
-  // File upload states
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Modal states
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [showAddContactModal, setShowAddContactModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
-  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState(null);
-  const [showLoadingModal, setShowLoadingModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('Working on it...');
-  const [successMessage, setSuccessMessage] = useState('Success!');
+  // Sample user for the app
+  const [currentUser] = useState({
+    name: 'Alex Johnson',
+    company: 'Johnson Consulting'
+  });
+
+  // Change 2 additions - Enhanced contact management
+  const [maxEnrichments] = useState(100);
+  const [enrichmentsUsed, setEnrichmentsUsed] = useState(0);
+
+  // Change 3 additions - Setup task tracking and progression
+  const [setupTasks, setSetupTasks] = useState([
+    { id: 'complete-strategy', text: 'Complete strategy section', completed: false },
+    { id: 'complete-business-info', text: 'Complete business information in settings', completed: false },
+    { id: 'upload-linkedin', text: 'Upload LinkedIn connection', completed: false },
+    { id: 'categorise-contacts', text: 'Categorise contacts', completed: false },
+    { id: 'enrich-ideal-clients', text: 'Enrich ideal clients', completed: false }
+  ]);
+
+  const [setupComplete, setSetupComplete] = useState(false);
+
+  // Change 4 additions - Messages functionality
+  const [copyFeedback, setCopyFeedback] = useState('');
+
+  // Change 6 additions - Writing style analysis
+  const [writingQuestions, setWritingQuestions] = useState({
+    business: '',
+    hobby: '',
+    story: ''
+  });
+  const [writingStyle, setWritingStyle] = useState(null);
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [showWritingStyleModal, setShowWritingStyleModal] = useState(false);
+
+  // Contact filter state
+  const [contactFilter, setContactFilter] = useState('all');
+
+  // Message generation state
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
 
   // Strategy state
   const [strategy, setStrategy] = useState({
@@ -101,7 +72,17 @@ const GlassSlipperApp = () => {
   ]);
 
   // Enrichment counter
-  const [enrichmentsLeft, setEnrichmentsLeft] = useState(50);
+  const enrichmentsLeft = maxEnrichments - enrichmentsUsed;
+
+  // Task management state (Change 1 additions)
+  const [dailyTasks, setDailyTasks] = useState([
+    { id: 'send-messages', text: 'Send 5 messages', completed: false },
+    { id: 'comment-posts', text: 'Comment on 5 ideal client posts', completed: false },
+    { id: 'post-content', text: 'Post content', completed: false }
+  ]);
+
+  const [contactTasks, setContactTasks] = useState({}); // Object with contactId as key
+  const [allDailyTasksComplete, setAllDailyTasksComplete] = useState(false);
 
   // Task management
   const [tasks, setTasks] = useState([
@@ -112,822 +93,693 @@ const GlassSlipperApp = () => {
     { id: 5, text: 'Enrich your ideal clients', completed: false, priority: 'low' }
   ]);
 
-  // Form validation
-  const validateAuthForm = () => {
-    if (!authForm.email || !authForm.password) return false;
-    if (authView === 'register' && (!authForm.name || !authForm.company || !authForm.confirmPassword)) return false;
-    if (authView === 'register' && authForm.password !== authForm.confirmPassword) return false;
+  // User state
+  const [user, setUser] = useState({
+    name: '',
+    email: '',
+    company: '',
+    industry: '',
+    businessStage: ''
+  });
+
+  // Sample contacts data with enhanced fields for Change 2
+  const [contacts, setContacts] = useState([
+    {
+      id: 1,
+      firstName: 'Sarah',
+      lastName: 'Smith',
+      company: 'TechCorp Industries',
+      position: 'CEO',
+      email: 'sarah@techcorp.com',
+      category: 'Ideal Client',
+      notes: '',
+      enriched: true,
+      linkedinUrl: 'https://linkedin.com/in/sarahsmith',
+      companySize: '100-500',
+      industry: 'Technology',
+      location: 'London, UK'
+    },
+    {
+      id: 2,
+      firstName: 'Mike',
+      lastName: 'Johnson',
+      company: 'Innovation Labs',
+      position: 'Founder',
+      email: 'mike@innovationlabs.com',
+      category: 'Referral Partner',
+      notes: '',
+      enriched: false,
+      linkedinUrl: 'https://linkedin.com/in/mikejohnson',
+      companySize: '10-50',
+      industry: 'Consulting',
+      location: 'Manchester, UK'
+    },
+    {
+      id: 3,
+      firstName: 'Emma',
+      lastName: 'Davis',
+      company: 'Growth Solutions',
+      position: 'Marketing Director',
+      email: 'emma@growthsolutions.com',
+      category: 'Ideal Client',
+      notes: '',
+      enriched: true,
+      linkedinUrl: 'https://linkedin.com/in/emmadavis',
+      companySize: '50-100',
+      industry: 'Marketing',
+      location: 'Birmingham, UK'
+    }
+  ]);
+
+  // Load daily tasks from localStorage on component mount (Change 1 addition)
+  useEffect(() => {
+    if (isAuthenticated) {
+      const today = new Date().toDateString();
+      const lastLoginDate = localStorage.getItem('lastLoginDate');
+      const storedTasks = localStorage.getItem('dailyTasks');
+      
+      if (lastLoginDate === today && storedTasks) {
+        // Same day login, load saved tasks
+        const savedTasks = JSON.parse(storedTasks);
+        setDailyTasks(savedTasks);
+        
+        // Check if all tasks are complete
+        const allComplete = savedTasks.every(task => task.completed);
+        setAllDailyTasksComplete(allComplete);
+      } else {
+        // First login of the day, reset tasks
+        const resetTasks = [
+          { id: 'send-messages', text: 'Send 5 messages', completed: false },
+          { id: 'comment-posts', text: 'Comment on 5 ideal client posts', completed: false },
+          { id: 'post-content', text: 'Post content', completed: false }
+        ];
+        setDailyTasks(resetTasks);
+        setAllDailyTasksComplete(false);
+        
+        // Save new login date and reset tasks
+        localStorage.setItem('lastLoginDate', today);
+        localStorage.setItem('dailyTasks', JSON.stringify(resetTasks));
+      }
+    }
+  }, [isAuthenticated]);
+
+  // Save daily tasks to localStorage whenever they change (Change 1 addition)
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem('dailyTasks', JSON.stringify(dailyTasks));
+      localStorage.setItem('lastLoginDate', new Date().toDateString());
+      
+      // Check if all daily tasks are complete
+      const allComplete = dailyTasks.every(task => task.completed);
+      setAllDailyTasksComplete(allComplete);
+    }
+  }, [dailyTasks, isAuthenticated]);
+
+  // Check if setup is complete whenever setup tasks change (Change 3 addition)
+  useEffect(() => {
+    const allSetupComplete = setupTasks.every(task => task.completed);
+    setSetupComplete(allSetupComplete);
+  }, [setupTasks]);
+
+  // Load saved writing style from localStorage (Change 6 addition)
+  useEffect(() => {
+    if (isAuthenticated) {
+      const savedWritingStyle = localStorage.getItem('userWritingStyle');
+      if (savedWritingStyle) {
+        try {
+          const parsedStyle = JSON.parse(savedWritingStyle);
+          setWritingStyle(parsedStyle);
+        } catch (error) {
+          console.error('Error loading saved writing style:', error);
+        }
+      }
+    }
+  }, [isAuthenticated]);
+
+  // Reset contact filter when switching views
+  useEffect(() => {
+    if (currentView !== 'contacts') {
+      setContactFilter('all');
+    }
+  }, [currentView]);
+
+  // Helper function to calculate business days between two dates (Change 1 addition)
+  const getBusinessDaysBetween = (startDate, endDate) => {
+    let count = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate < endDate) {
+      const dayOfWeek = currentDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return count;
+  };
+
+  // Function to get contact-specific tasks for a contact (Change 5 addition)
+  const getContactTasks = (contactId) => {
+    const contactTaskList = contactTasks[contactId] || {
+      viewProfile: { completed: false, completedDate: null },
+      turnOnNotifications: { completed: false, completedDate: null },
+      sendMessage: { completed: false, completedDate: null },
+      followUp: { completed: false, completedDate: null },
+      directOutreach: { completed: false, completedDate: null }
+    };
+
+    // Check if this contact has completed the initial 4 tasks
+    const initialTasksComplete = contactTaskList.viewProfile.completed && 
+                                contactTaskList.turnOnNotifications.completed && 
+                                contactTaskList.sendMessage.completed && 
+                                contactTaskList.followUp.completed;
+
+    // Check if follow-up should be visible (3 business days after send message)
+    let showFollowUp = false;
+    if (contactTaskList.sendMessage.completed && contactTaskList.sendMessage.completedDate) {
+      const completedDate = new Date(contactTaskList.sendMessage.completedDate);
+      const currentDate = new Date();
+      const businessDaysBetween = getBusinessDaysBetween(completedDate, currentDate);
+      showFollowUp = businessDaysBetween >= 3;
+    }
+
+    // If initial tasks are complete, show only direct outreach task
+    if (initialTasksComplete) {
+      return [
+        { key: 'directOutreach', label: 'Send direct outreach message', completed: contactTaskList.directOutreach.completed, completedDate: contactTaskList.directOutreach.completedDate }
+      ];
+    }
+
+    // Otherwise show the normal progression
+    const tasks = [
+      { key: 'viewProfile', label: 'View their profile', completed: contactTaskList.viewProfile.completed, completedDate: contactTaskList.viewProfile.completedDate },
+      { key: 'turnOnNotifications', label: 'Turn on notifications', completed: contactTaskList.turnOnNotifications.completed, completedDate: contactTaskList.turnOnNotifications.completedDate },
+      { key: 'sendMessage', label: 'Send message', completed: contactTaskList.sendMessage.completed, completedDate: contactTaskList.sendMessage.completedDate }
+    ];
+
+    if (showFollowUp) {
+      tasks.push({ key: 'followUp', label: 'Follow up message', completed: contactTaskList.followUp.completed, completedDate: contactTaskList.followUp.completedDate });
+    }
+
+    return tasks;
+  };
+
+  // Function to get contact-specific tasks for 5 most recent ideal clients (Change 1 addition)
+  const getContactSpecificTasks = () => {
+    const idealClients = contacts
+      .filter(c => c.category === 'Ideal Client')
+      .sort((a, b) => b.id - a.id) // Most recently added first
+      .slice(0, 5);
+
+    if (idealClients.length === 0) {
+      return [];
+    }
+
+    const tasksList = [];
+    
+    idealClients.forEach(contact => {
+      const contactTaskList = contactTasks[contact.id] || {
+        viewProfile: { completed: false, completedDate: null },
+        turnOnNotifications: { completed: false, completedDate: null },
+        sendMessage: { completed: false, completedDate: null },
+        followUp: { completed: false, completedDate: null },
+        directOutreach: { completed: false, completedDate: null }
+      };
+
+      // Check if initial 4 tasks are completed
+      const initialTasksComplete = contactTaskList.viewProfile.completed && 
+                                  contactTaskList.turnOnNotifications.completed && 
+                                  contactTaskList.sendMessage.completed && 
+                                  contactTaskList.followUp.completed;
+
+      // Check if follow-up should be visible (3 business days after send message)
+      let showFollowUp = false;
+      if (contactTaskList.sendMessage.completed && contactTaskList.sendMessage.completedDate) {
+        const completedDate = new Date(contactTaskList.sendMessage.completedDate);
+        const currentDate = new Date();
+        const businessDaysBetween = getBusinessDaysBetween(completedDate, currentDate);
+        showFollowUp = businessDaysBetween >= 3;
+      }
+
+      // If initial tasks are complete, show direct outreach task
+      if (initialTasksComplete) {
+        const tasks = [
+          { key: 'directOutreach', label: 'Send direct outreach message', completed: contactTaskList.directOutreach.completed }
+        ];
+        tasksList.push({ contact, tasks });
+      } else {
+        // Show normal progression
+        const tasks = [
+          { key: 'viewProfile', label: 'View their profile', completed: contactTaskList.viewProfile.completed },
+          { key: 'turnOnNotifications', label: 'Turn on notifications', completed: contactTaskList.turnOnNotifications.completed },
+          { key: 'sendMessage', label: 'Send message', completed: contactTaskList.sendMessage.completed }
+        ];
+
+        if (showFollowUp) {
+          tasks.push({ key: 'followUp', label: 'Follow up message', completed: contactTaskList.followUp.completed });
+        }
+
+        tasksList.push({ contact, tasks });
+      }
+    });
+
+    return tasksList;
+  };
+
+  // Function to complete daily task (Change 1 addition)
+  const completeDailyTask = (taskId) => {
+    setDailyTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === taskId 
+          ? { ...task, completed: !task.completed }
+          : task
+      )
+    );
+  };
+
+  // Function to complete contact task (Change 1 addition)
+  const completeContactTask = (contactId, taskKey) => {
+    setContactTasks(prevTasks => {
+      const contactTaskList = prevTasks[contactId] || {
+        viewProfile: { completed: false, completedDate: null },
+        turnOnNotifications: { completed: false, completedDate: null },
+        sendMessage: { completed: false, completedDate: null },
+        followUp: { completed: false, completedDate: null },
+        directOutreach: { completed: false, completedDate: null }
+      };
+
+      const updatedTask = {
+        completed: !contactTaskList[taskKey].completed,
+        completedDate: !contactTaskList[taskKey].completed ? new Date().toISOString() : null
+      };
+
+      return {
+        ...prevTasks,
+        [contactId]: {
+          ...contactTaskList,
+          [taskKey]: updatedTask
+        }
+      };
+    });
+  };
+
+  // Function to validate writing questions (Change 6 addition)
+  const validateWritingQuestions = () => {
+    const { business, hobby, story } = writingQuestions;
+    
+    if (!business.trim()) {
+      alert('Please complete the business description before continuing.');
+      return false;
+    }
+    if (!hobby.trim()) {
+      alert('Please complete the hobby section before continuing.');
+      return false;
+    }
+    if (!story.trim()) {
+      alert('Please complete your story before continuing.');
+      return false;
+    }
+    
     return true;
   };
 
-  // Authentication handlers
-  const handleAuth = () => {
-    if (!validateAuthForm()) return;
+  // Function to analyse writing style using Claude (Change 6 addition)
+  const analyseWritingStyle = async () => {
+    if (!validateWritingQuestions()) return;
     
-    setUser({
-      name: authForm.name || currentUser.name,
-      email: authForm.email,
-      company: authForm.company || currentUser.company,
-      businessType: user.businessType,
-      targetMarket: user.targetMarket,
-      writingStyle: user.writingStyle,
-      referralPartners: user.referralPartners
-    });
+    setIsAnalysing(true);
     
+    try {
+      const prompt = `Analyse the writing style from these three writing samples and provide a detailed style profile:
+
+Business Description:
+"${writingQuestions.business}"
+
+Hobby Writing:
+"${writingQuestions.hobby}"
+
+Personal Story:
+"${writingQuestions.story}"
+
+Please analyse and provide a comprehensive writing style profile including:
+1. Tone (formal/casual/conversational/professional)
+2. Voice characteristics (authoritative/friendly/personal/educational)
+3. Sentence structure preferences (short/long/varied)
+4. Language complexity level
+5. Personality that comes through
+6. Communication style preferences
+7. Key phrases or expressions they use
+8. Overall writing strengths
+9. British vs American English preferences (if detectable)
+
+Respond with a JSON object in this exact format:
+{
+  "tone": "description of tone",
+  "voice": "description of voice characteristics", 
+  "sentenceStructure": "description of sentence preferences",
+  "complexity": "description of language complexity",
+  "personality": "description of personality that shows through",
+  "communicationStyle": "description of communication preferences",
+  "keyPhrases": ["phrase1", "phrase2", "phrase3"],
+  "strengths": ["strength1", "strength2", "strength3"],
+  "britishPreference": "whether they use British or American English naturally",
+  "summary": "A brief 2-3 sentence summary of their unique writing style"
+}
+
+Your entire response MUST be valid JSON only, with no additional text or formatting. Use British English throughout.`;
+
+      // Simulate Claude API call (in real implementation, this would call window.claude.complete)
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const analysisResult = {
+        tone: "Professional yet approachable, with a conversational warmth",
+        voice: "Authoritative but friendly, with educational undertones and personal authenticity",
+        sentenceStructure: "Balanced mix of short punchy statements and longer explanatory sentences",
+        complexity: "Moderate complexity with clear explanations, accessible to broad audiences",
+        personality: "Confident and knowledgeable whilst remaining humble and relatable",
+        communicationStyle: "Direct and action-oriented with supportive guidance",
+        keyPhrases: ["let's dive in", "here's the thing", "practical approach"],
+        strengths: ["Clear communication", "Engaging storytelling", "Professional credibility"],
+        britishPreference: "Shows preference for British English spelling and phrasing",
+        summary: "Your writing style combines professional expertise with genuine warmth and clarity. You have a gift for making complex topics accessible whilst maintaining authority and trustworthiness."
+      };
+      
+      setWritingStyle(analysisResult);
+      setShowWritingStyleModal(true);
+      
+      // Save to localStorage
+      localStorage.setItem('userWritingStyle', JSON.stringify(analysisResult));
+      
+    } catch (error) {
+      console.error('Error analysing writing style:', error);
+      alert('Sorry, there was an error analysing your writing style. Please try again.');
+    } finally {
+      setIsAnalysing(false);
+    }
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
     setIsAuthenticated(true);
-    setAuthForm({ email: '', password: '', confirmPassword: '', name: '', company: '' });
+    setCurrentView('dashboard');
+  };
+
+  const handleSignUp = (e) => {
+    e.preventDefault();
+    setIsAuthenticated(true);
+    setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    setAuthView('landing');
-    setCurrentView('dashboard');
+    setCurrentView('login');
+    setShowMobileMenu(false);
   };
 
-  // File upload handler
-  const handleFileUpload = useCallback((event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (file.type !== 'text/csv') {
-      alert('Please upload a CSV file');
-      return;
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === 'text/csv') {
+      console.log('File uploaded:', file.name);
     }
+  };
 
-    setUploading(true);
-    setUploadProgress(0);
-
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          
-          // Simulate processing
-          setTimeout(() => {
-            setUploadProgress(100);
-            setTimeout(() => {
-              setUploading(false);
-              setUploadProgress(0);
-              
-              // Add some mock contacts
-              const mockContacts = [
-                { id: Date.now() + 1, name: 'John Smith', company: 'Tech Corp', position: 'CEO', phone: 'Not found', category: 'Uncategorised', isEnriched: false },
-                { id: Date.now() + 2, name: 'Sarah Johnson', company: 'Marketing Ltd', position: 'Director', phone: 'Not found', category: 'Uncategorised', isEnriched: false }
-              ];
-              
-              setContacts(prev => [...prev, ...mockContacts]);
-              setSuccessMessage('Contacts uploaded successfully!');
-              setShowSuccessModal(true);
-            }, 500);
-          }, 1000);
-          
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  }, []);
-
-  // Contact management
   const addContact = () => {
-    if (!contactForm.name || !contactForm.company) return;
-    
     const newContact = {
       id: Date.now(),
-      name: contactForm.name,
-      company: contactForm.company,
-      position: contactForm.position,
-      phone: contactForm.phone,
-      linkedinProfile: contactForm.linkedinProfile,
+      firstName: 'New',
+      lastName: 'Contact',
+      company: 'Company Name',
+      position: 'Position',
+      email: 'email@company.com',
       category: 'Uncategorised',
-      isEnriched: false
+      notes: '',
+      enriched: false,
+      linkedinUrl: '',
+      companySize: '',
+      industry: '',
+      location: ''
     };
-    
-    setContacts(prev => [...prev, newContact]);
-    setContactForm({ name: '', company: '', position: '', phone: '', linkedinProfile: '' });
-    setShowAddContactModal(false);
-    setSuccessMessage('Contact added successfully!');
-    setShowSuccessModal(true);
+    setContacts([...contacts, newContact]);
   };
 
-  const deleteContact = (contactId) => {
-    setContacts(prev => prev.filter(contact => contact.id !== contactId));
-    setShowContactModal(false);
-  };
-
-  // Generic lead magnet generation
-  const createGenericLeadMagnet = async () => {
-    setLoadingMessage('Generating lead magnet...');
-    setShowLoadingModal(true);
-
-    try {
-      const prompt = `You are creating a valuable lead magnet based on Adam Jones' LinkedIn Formula methodology.
-
-User's Business:
-- One Offer: ${strategy.oneOffer || 'Not specified'}
-- Business Type: ${user.businessType || 'Not specified'}
-- Target Market: ${user.targetMarket || 'Not specified'}
-- Writing Style: ${user.writingStyle || 'professional'}
-- What Makes Them Special: ${strategy.specialFactors || 'Not specified'}
-
-CRITICAL: You must choose the BEST format for this business and their target market:
-
-FORMAT OPTION 1 - HOW-TO GUIDE:
-Use this format when the target market needs actionable steps to solve a specific problem.
-Structure: "X Ways to [Solve Problem]" with numbered steps and explanations.
-Best for: Operational issues, process improvements, skill development
-
-FORMAT OPTION 2 - SELF-AUDIT CHECKLIST:
-Use this format when the target market needs to assess their current situation first.
-Structure: "The [Industry] Audit: Are You Making These Mistakes?" with checkboxes and scoring.
-Best for: Strategic assessments, identifying gaps, competitive analysis
-
-CHOOSE THE FORMAT that will be most valuable for businesses in ${user.targetMarket || 'your target market'} based on their likely pain points.
-
-Based on the LinkedIn Formula principles:
-- Focus on solving ONE specific problem
-- Provide genuine value, not just promotion
-- Make it actionable and implementable immediately
-- Use storytelling to make it engaging
-- Address specific pain points for the target market
-- Include a clear next step
-
-Create a valuable lead magnet that:
-1. Addresses a specific problem your target market faces
-2. Provides actionable steps they can implement immediately
-3. Demonstrates expertise without giving away everything
-4. Positions you as the go-to expert for ${strategy.oneOffer || 'your services'}
-5. Includes a soft call-to-action for further help
-
-Write in ${user.writingStyle || 'professional'} tone. Include specific examples relevant to ${user.targetMarket || 'your target market'}.
-
-Length: 800-1200 words of high-value content.
-
-Start with the chosen format and make it incredibly valuable for your target market.`;
-
-      const response = await window.claude.complete(prompt);
-      
-      const newLeadMagnet = {
-        id: Date.now(),
-        title: `${user.targetMarket || 'Business'} Lead Magnet`,
-        description: `A valuable resource for ${user.targetMarket || 'your target market'} to help them succeed`,
-        content: response,
-        createdAt: new Date().toISOString(),
-        isPersonalized: false
-      };
-      
-      setLeadMagnets(prev => [...prev, newLeadMagnet]);
-      setShowLoadingModal(false);
-      setSuccessMessage('Lead magnet created successfully!');
-      setShowSuccessModal(true);
-    } catch (error) {
-      console.error('Lead magnet generation failed:', error);
-      setShowLoadingModal(false);
-      alert('Failed to generate lead magnet. Please try again.');
+  const deleteContact = (id) => {
+    setContacts(contacts.filter(contact => contact.id !== id));
+    if (selectedContact && selectedContact.id === id) {
+      setSelectedContact(null);
     }
   };
 
-  // Enrichment functions
-  const enrichContact = async (contactId) => {
-    if (enrichmentsLeft <= 0) {
-      alert('No enrichments left for this month');
-      return;
+  const updateContact = (id, updates) => {
+    setContacts(contacts.map(contact => 
+      contact.id === id ? { ...contact, ...updates } : contact
+    ));
+    if (selectedContact && selectedContact.id === id) {
+      setSelectedContact({ ...selectedContact, ...updates });
     }
+  };
 
-    setLoadingMessage('Enriching contact data...');
-    setShowLoadingModal(true);
-    
+  // Clear generated message when contact modal closes
+  useEffect(() => {
+    if (!selectedContact) {
+      setGeneratedMessage('');
+    }
+  }, [selectedContact]);
+
+  const enrichContact = async (id) => {
+    if (enrichmentsLeft <= 0) return;
+
+    const contact = contacts.find(c => c.id === id);
+    if (!contact || contact.enriched) return;
+
     // Simulate enrichment process
-    setTimeout(() => {
-      setContacts(prev => prev.map(contact => 
-        contact.id === contactId 
-          ? { 
-              ...contact, 
-              isEnriched: true,
-              enrichmentData: {
-                industry: 'Technology - Software Development',
-                location: 'London, UK',
-                website: 'https://example.com',
-                linkedinProfile: 'https://linkedin.com/in/example'
-              }
-            }
-          : contact
-      ));
-      
-      setEnrichmentsLeft(prev => prev - 1);
-      setShowLoadingModal(false);
-      setSuccessMessage('Contact enriched successfully!');
-      setShowSuccessModal(true);
-    }, 2000);
-  };
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-  const enrichIdealClients = async () => {
-    const idealClients = contacts.filter(c => c.category === 'Ideal Client' && !c.isEnriched).slice(0, 50);
-    
-    if (idealClients.length === 0) {
-      alert('No ideal clients to enrich');
-      return;
-    }
-
-    if (enrichmentsLeft < idealClients.length) {
-      alert(`Not enough enrichments left. You have ${enrichmentsLeft} left but need ${idealClients.length}`);
-      return;
-    }
-
-    setLoadingMessage(`Enriching ${idealClients.length} ideal clients...`);
-    setShowLoadingModal(true);
-    
-    // Simulate batch enrichment
-    setTimeout(() => {
-      setContacts(prev => prev.map(contact => 
-        idealClients.some(ic => ic.id === contact.id)
-          ? { 
-              ...contact, 
-              isEnriched: true,
-              enrichmentData: {
-                industry: 'Various Industries',
-                location: 'UK',
-                website: 'https://example.com',
-                linkedinProfile: 'https://linkedin.com/in/example'
-              }
-            }
-          : contact
-      ));
-      
-      setEnrichmentsLeft(prev => prev - idealClients.length);
-      setShowLoadingModal(false);
-      setSuccessMessage(`Successfully enriched ${idealClients.length} ideal clients!`);
-      setShowSuccessModal(true);
-    }, 3000);
-  };
-
-  // AI Categorization with intelligent matching
-  const categorizeContact = (contact) => {
-    const { targetMarket, referralPartners, businessType } = user;
-    
-    if (!targetMarket) return 'Other';
-    
-    const industry = (contact.enrichmentData?.industry || contact.position || '').toLowerCase();
-    const company = (contact.company || '').toLowerCase();
-    const position = (contact.position || '').toLowerCase();
-    
-    // Normalize target market for better matching
-    const normalizedTargetMarket = targetMarket.toLowerCase();
-    const normalizedReferralPartners = (referralPartners || '').toLowerCase();
-    const normalizedBusinessType = (businessType || '').toLowerCase();
-    
-    // Enhanced matching logic with industry hierarchies and synonyms
-    const industryMatches = {
-      'professional services': ['consulting', 'advisory', 'legal', 'accounting', 'audit', 'tax', 'hr', 'human resources', 'recruitment', 'marketing', 'advertising', 'pr', 'communications', 'it', 'technology', 'software', 'finance', 'financial', 'wealth', 'investment', 'banking', 'insurance', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency'],
-      'finance': ['financial', 'wealth', 'investment', 'banking', 'insurance', 'accounting', 'audit', 'tax', 'money', 'fund', 'asset', 'pension', 'mortgage', 'loan', 'treasury', 'risk', 'compliance', 'fintech'],
-      'marketing': ['advertising', 'digital', 'social media', 'seo', 'ppc', 'content', 'brand', 'pr', 'communications', 'media', 'creative', 'campaign', 'growth', 'acquisition', 'engagement', 'analytics'],
-      'tech': ['technology', 'software', 'IT', 'development', 'programming', 'data', 'analytics', 'cloud', 'cybersecurity', 'ai', 'automation', 'saas', 'platform', 'infrastructure', 'devops'],
-      'consulting': ['advisory', 'consultant', 'strategy', 'management', 'business', 'operational', 'transformation', 'efficiency', 'change', 'process', 'improvement', 'optimization'],
-      'healthcare': ['medical', 'health', 'pharmaceutical', 'clinical', 'hospital', 'doctor', 'nurse', 'therapy', 'wellness', 'biotech', 'diagnostics', 'treatment'],
-      'education': ['training', 'learning', 'academic', 'university', 'school', 'teaching', 'course', 'certification', 'elearning', 'coaching', 'development'],
-      'retail': ['ecommerce', 'shopping', 'commerce', 'sales', 'store', 'merchandise', 'consumer', 'customer', 'marketplace', 'distribution'],
-      'manufacturing': ['production', 'industrial', 'factory', 'supply', 'logistics', 'operations', 'quality', 'assembly', 'fabrication', 'processing'],
-      'legal': ['law', 'attorney', 'lawyer', 'solicitor', 'barrister', 'litigation', 'contracts', 'compliance', 'regulatory', 'intellectual property'],
-      'hr': ['human resources', 'recruitment', 'staffing', 'talent', 'workforce', 'payroll', 'benefits', 'training', 'development', 'culture']
+    const enrichedData = {
+      enriched: true,
+      companySize: '50-200',
+      industry: 'Technology',
+      location: 'London, UK'
     };
-    
-    // Function to check if text matches target market or its synonyms
-    const isMatchingIndustry = (text, target) => {
-      // Direct match
-      if (text.includes(target)) return true;
-      
-      // Check synonyms
-      for (const [key, synonyms] of Object.entries(industryMatches)) {
-        if (target.includes(key) || synonyms.some(syn => target.includes(syn))) {
-          return synonyms.some(syn => text.includes(syn)) || text.includes(key);
-        }
-      }
-      
-      // Check if target words appear in text
-      const targetWords = target.split(' ');
-      return targetWords.some(word => word.length > 2 && text.includes(word));
-    };
-    
-    // Check for ideal client match
-    if (isMatchingIndustry(industry, normalizedTargetMarket) || 
-        isMatchingIndustry(company, normalizedTargetMarket) ||
-        isMatchingIndustry(position, normalizedTargetMarket)) {
-      return 'Ideal Client';
-    }
-    
-    // Check for referral partner match
-    if (normalizedReferralPartners && 
-        (isMatchingIndustry(industry, normalizedReferralPartners) || 
-         isMatchingIndustry(company, normalizedReferralPartners) ||
-         isMatchingIndustry(position, normalizedReferralPartners))) {
-      return 'Referral Partners';
-    }
-    
-    // Check for competitor match (similar to user's business type)
-    if (normalizedBusinessType && 
-        (isMatchingIndustry(industry, normalizedBusinessType) || 
-         isMatchingIndustry(company, normalizedBusinessType) ||
-         isMatchingIndustry(position, normalizedBusinessType))) {
-      return 'Competitors';
-    }
-    
-    return 'Other';
+
+    updateContact(id, enrichedData);
+    setEnrichmentsUsed(prev => prev + 1);
   };
 
-  const aiCategorizeAll = () => {
-    setLoadingMessage('Categorizing all contacts...');
-    setShowLoadingModal(true);
-    
-    setTimeout(() => {
-      setContacts(prev => prev.map(contact => ({
-        ...contact,
-        category: categorizeContact(contact)
-      })));
-      
-      setShowLoadingModal(false);
-      setSuccessMessage('All contacts categorized successfully!');
-      setShowSuccessModal(true);
-    }, 1500);
-  };
-
-  // Strategy generation with real AI
-  const generateStrategy = async () => {
-    if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
-      alert('Please fill in all strategy fields first');
-      return;
-    }
-
-    setLoadingMessage('Generating your LinkedIn strategy...');
-    setShowLoadingModal(true);
+  // Function to generate personalized message for contact
+  const generateContactMessage = async (contact) => {
+    setIsGeneratingMessage(true);
     
     try {
-      // Create comprehensive prompt based on LinkedIn Formula
-      const prompt = `You are an expert LinkedIn strategist implementing Adam Jones' LinkedIn Formula methodology. 
-
-User's Business Details:
-- One Offer: ${strategy.oneOffer}
-- Ideal Referral Partners: ${strategy.idealReferralPartners}
-- What Makes Them Special: ${strategy.specialFactors}
-- Business Type: ${user.businessType}
-- Target Market: ${user.targetMarket}
-- Writing Style: ${user.writingStyle}
-
-Based on Adam Jones' LinkedIn Formula 10-step process:
-1. Define your one offer ✓
-2. Create your value proposition
-3. Build your Ideal Customer Profile
-4. Do some customer interviews
-5. Discover your style ✓
-6. Shoot some content
-7. Write your profile
-8. Build the strategy
-9. Start implementing it
-10. Constantly review
-
-Key principles from the LinkedIn Formula:
-- Focus on ONE thing to be known for
-- Your profile is a landing page
-- Content funnel: 3x Awareness, 2x Interest, 1x Decision, 1x Action
-- Content types: Education, Storytelling, Personal, Expertise, Sales
-- Success requires strategic preparation - 8 of 10 steps happen before posting
-- Stop selling, start helping
-- Content strategy: Case Study → Advice → Personal → Sales → Testimonial
-
-Create a comprehensive LinkedIn strategy that includes:
-
-1. **Value Proposition** (following Adam's 3-part formula: What you provide + Who you provide it to + What makes you unique)
-
-2. **Ideal Customer Profile** (detailed description of who will buy from them)
-
-3. **Content Strategy** (specific content calendar following the funnel approach)
-
-4. **Profile Optimization** (headline, about section, call-to-action)
-
-5. **Engagement Strategy** (how to find and engage with ideal clients)
-
-6. **Pain Points** (specific problems their ideal clients face)
-
-7. **Implementation Plan** (step-by-step next actions)
-
-8. **Messaging Framework** (how to start conversations that lead to business)
-
-Make this strategy actionable, specific, and based on proven LinkedIn Formula principles. Write in a straightforward, conversational tone that values radical candour. Include specific examples and avoid generic advice.`;
-
-      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 4000);
+      // Get the most recent personalized lead magnet or use the default one
+      const personalizedLeadMagnet = leadMagnets.find(lm => lm.isPersonalized) || leadMagnets[0];
       
-      setStrategy(prev => ({ ...prev, generatedStrategy: response }));
-      setShowLoadingModal(false);
-      setSuccessMessage('Strategy generated successfully!');
-      setShowSuccessModal(true);
+      // Use the contact's industry or default to their company type
+      const industry = contact.industry || 'business';
+      
+      // Get user name from user state or default
+      const userName = user.name || currentUser.name || 'Best regards';
+      
+      // Create the exact template format as specified
+      const messageTemplate = `Hi ${contact.firstName}, Hope you're doing well! I've just put together a quick guide that might be useful - "${personalizedLeadMagnet.title}". ${personalizedLeadMagnet.description}. Thought it might be handy given we're both in the ${industry} world. Happy to send it over if you'd like a copy? No sales pitch attached - just sharing something that might help! Best, ${userName}`;
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setGeneratedMessage(messageTemplate);
+      
     } catch (error) {
-      console.error('Strategy generation failed:', error);
-      setShowLoadingModal(false);
-      alert('Failed to generate strategy. Please try again.');
+      console.error('Error generating message:', error);
+      alert('Sorry, there was an error generating the message. Please try again.');
+    } finally {
+      setIsGeneratingMessage(false);
     }
   };
 
-  // Lead magnet generation with real AI
-  const generateLeadMagnet = async (contactId) => {
-    const contact = contacts.find(c => c.id === contactId);
-    if (!contact) return;
-
-    setLoadingMessage('Generating personalized lead magnet...');
-    setShowLoadingModal(true);
-
-    try {
-      const prompt = `You are creating a valuable lead magnet based on Adam Jones' LinkedIn Formula methodology.
-
-Contact Details:
-- Name: ${contact.name}
-- Company: ${contact.company}
-- Position: ${contact.position}
-- Industry: ${contact.enrichmentData?.industry || 'Not specified'}
-- Category: ${contact.category}
-
-User's Business:
-- One Offer: ${strategy.oneOffer}
-- Business Type: ${user.businessType}
-- Target Market: ${user.targetMarket}
-- Writing Style: ${user.writingStyle}
-- What Makes Them Special: ${strategy.specialFactors}
-
-CRITICAL: You must choose the BEST format for this specific contact and their likely problems:
-
-FORMAT OPTION 1 - HOW-TO GUIDE:
-Use this format when the contact needs actionable steps to solve a specific problem.
-Structure: "X Ways to [Solve Problem]" with numbered steps and explanations.
-Best for: Operational issues, process improvements, skill development
-
-FORMAT OPTION 2 - SELF-AUDIT CHECKLIST:
-Use this format when the contact needs to assess their current situation first.
-Structure: "The [Industry] Audit: Are You Making These Mistakes?" with checkboxes and scoring.
-Best for: Strategic assessments, identifying gaps, competitive analysis
-
-CHOOSE THE FORMAT that will be most valuable for ${contact.name} in ${contact.enrichmentData?.industry || 'their industry'} based on their likely pain points.
-
-Based on the LinkedIn Formula principles:
-- Focus on solving ONE specific problem
-- Provide genuine value, not just promotion
-- Make it actionable and implementable immediately
-- Use storytelling to make it engaging
-- Address specific pain points for their industry/role
-- Include a clear next step
-
-Create a valuable lead magnet that:
-1. Addresses a specific problem ${contact.name} at ${contact.company} likely faces
-2. Provides actionable steps they can implement immediately
-3. Demonstrates expertise without giving away everything
-4. Positions the user as the go-to expert for ${strategy.oneOffer}
-5. Includes a soft call-to-action for further help
-
-Write in ${user.writingStyle || 'professional'} tone. Include specific examples relevant to their ${contact.enrichmentData?.industry || 'industry'}.
-
-Length: 800-1200 words of high-value content.
-
-Start with the chosen format and make it incredibly valuable for their specific situation.`;
-
-      const response = await window.claude.complete(prompt, 'claude-sonnet-4-20250514', 3000);
-      
-      const newPersonalizedLeadMagnet = {
-        id: Date.now(),
-        title: `Personalized LinkedIn Strategy for ${contact.name}`,
-        description: `A personalized strategy created specifically for ${contact.name} at ${contact.company}`,
-        content: response,
-        createdAt: new Date().toISOString(),
-        isPersonalized: true,
-        contactName: contact.name,
-        company: contact.company
-      };
-      
-      // Add to the lead magnets array so it appears in the Lead Magnets section
-      setLeadMagnets(prev => [...prev, newPersonalizedLeadMagnet]);
-      
-      // Also set as selected for immediate modal display
-      setSelectedLeadMagnet(newPersonalizedLeadMagnet);
-      
-      setShowLoadingModal(false);
-      setShowLeadMagnetModal(true);
-    } catch (error) {
-      console.error('Lead magnet generation failed:', error);
-      setShowLoadingModal(false);
-      alert('Failed to generate lead magnet. Please try again.');
-    }
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopyFeedback('Copied!');
+    setTimeout(() => setCopyFeedback(''), 2000);
   };
 
-  // Stats calculations
-  const totalContacts = contacts.length;
-  const idealClients = contacts.filter(c => c.category === 'Ideal Client').length;
-  const enrichedContacts = contacts.filter(c => c.isEnriched).length;
-  const referralPartners = contacts.filter(c => c.category === 'Referral Partners').length;
-
-  // Top 5 tasks
-  const topTasks = tasks.filter(t => !t.completed).slice(0, 5);
-
+  // Login/Signup Page
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          {authView === 'landing' && (
-            <div className="text-center space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center justify-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-purple-900" />
-                  </div>
-                  <h1 className="text-3xl font-bold text-white">Glass Slipper</h1>
-                </div>
-                <p className="text-xl text-white text-opacity-90">AI-Powered ABM Platform</p>
-                <p className="text-white text-opacity-70">Transform your LinkedIn connections into strategic business relationships</p>
+        <div className="max-w-md w-full">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-white">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center space-x-2 mb-4">
+                <Sparkles className="w-8 h-8 text-yellow-400" />
+                <h1 className="text-2xl font-bold">Glass Slipper</h1>
               </div>
-
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <Shield className="w-6 h-6 text-green-400" />
-                    <span className="text-white">AI-Powered Contact Categorization</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Users className="w-6 h-6 text-blue-400" />
-                    <span className="text-white">Intelligent Lead Scoring</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Target className="w-6 h-6 text-red-400" />
-                    <span className="text-white">Automated Relationship Management</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setAuthView('login')}
-                    className="w-full bg-yellow-400 hover:bg-yellow-500 text-purple-900 font-semibold py-3 px-6 rounded-lg transition-all flex items-center justify-center space-x-2"
-                  >
-                    <span>Get Started</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setAuthView('register')}
-                    className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white font-semibold py-3 px-6 rounded-lg transition-all border border-white border-opacity-20"
-                  >
-                    Create Account
-                  </button>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <p className="text-white text-opacity-50 text-sm">Glass Slipper v1.0 Beta</p>
-              </div>
+              <p className="text-white text-opacity-70">
+                {currentView === 'login' ? 'Welcome Back' : 'Get Started'}
+              </p>
+              <p className="text-white text-opacity-60 text-sm">
+                {currentView === 'login' 
+                  ? 'Sign in to your Glass Slipper account' 
+                  : 'Create your Glass Slipper account'
+                }
+              </p>
             </div>
-          )}
 
-          {authView === 'login' && (
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 space-y-6">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
-                <p className="text-white text-opacity-70">Sign in to your Glass Slipper account</p>
-              </div>
-
-              <div className="space-y-4">
+            {currentView === 'login' ? (
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Email Address
-                  </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-white text-opacity-50" />
                     <input
                       type="email"
-                      value={authForm.email}
-                      onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-4 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="Enter your email"
+                      placeholder="Email address"
+                      className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
                       required
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={authForm.password}
-                      onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-10 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="Enter your password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-opacity-70"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+                {showPasswordLogin && (
+                  <div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-5 h-5 text-white text-opacity-50" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Password"
+                        className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-3 text-white text-opacity-50 hover:text-opacity-80 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
 
-              <button
-                onClick={handleAuth}
-                disabled={!validateAuthForm()}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${
-                  validateAuthForm()
-                    ? 'bg-yellow-400 hover:bg-yellow-500 text-purple-900'
-                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Sign In
-              </button>
+                <button
+                  onClick={showPasswordLogin ? handleLogin : () => setShowPasswordLogin(true)}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+                >
+                  <span>Sign In</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
 
-              <div className="text-center">
-                <p className="text-white text-opacity-70 text-sm">
+                <p className="text-center text-white text-opacity-70 text-sm">
                   Don't have an account?{' '}
                   <button
-                    onClick={() => setAuthView('register')}
+                    type="button"
+                    onClick={() => setCurrentView('signup')}
                     className="text-yellow-400 hover:text-yellow-300 font-medium"
                   >
                     Sign up here
                   </button>
                 </p>
               </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    placeholder="First name"
+                    className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Last name"
+                    className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    required
+                  />
+                </div>
 
-              <div className="text-center">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-white text-opacity-50" />
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    required
+                  />
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-white text-opacity-50" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Create password"
+                    className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-white text-opacity-50 hover:text-opacity-80 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setAuthView('landing')}
-                  className="text-white text-opacity-50 hover:text-opacity-70 text-sm"
+                  onClick={handleSignUp}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
                 >
-                  ← Back to home
+                  <span>Create Account</span>
+                  <ArrowRight className="w-5 h-5" />
                 </button>
-              </div>
-            </div>
-          )}
 
-          {authView === 'register' && (
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 space-y-6">
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-white">Create Account</h2>
-                <p className="text-white text-opacity-70">Join Glass Slipper today</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type="text"
-                      value={authForm.name}
-                      onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-4 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="John Smith"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Company Name
-                  </label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type="text"
-                      value={authForm.company}
-                      onChange={(e) => setAuthForm({ ...authForm, company: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-4 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="Your Company Ltd"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type="email"
-                      value={authForm.email}
-                      onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-4 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="john@company.com"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={authForm.password}
-                      onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-10 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="Create a password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-opacity-70"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={authForm.confirmPassword}
-                      onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
-                      className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg py-3 pl-10 pr-10 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-30 transition-all"
-                      placeholder="Confirm your password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-opacity-70"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleAuth}
-                disabled={!validateAuthForm()}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all ${
-                  validateAuthForm()
-                    ? 'bg-yellow-400 hover:bg-yellow-500 text-purple-900'
-                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Create Account
-              </button>
-
-              <div className="text-center">
-                <p className="text-white text-opacity-70 text-sm">
+                <p className="text-center text-white text-opacity-70 text-sm">
                   Already have an account?{' '}
                   <button
-                    onClick={() => setAuthView('login')}
+                    type="button"
+                    onClick={() => setCurrentView('login')}
                     className="text-yellow-400 hover:text-yellow-300 font-medium"
                   >
                     Sign in here
                   </button>
                 </p>
               </div>
+            )}
 
+            <div className="mt-8 pt-6 border-t border-white border-opacity-20">
               <div className="text-center">
-                <button
-                  onClick={() => setAuthView('landing')}
-                  className="text-white text-opacity-50 hover:text-opacity-70 text-sm"
-                >
-                  ← Back to home
-                </button>
+                <p className="text-white text-opacity-60 text-xs mb-2">Glass Slipper v1.0 Beta</p>
+                <div className="flex items-center justify-center space-x-4 text-white text-opacity-40">
+                  <div className="flex items-center space-x-1">
+                    <Shield className="w-3 h-3" />
+                    <span className="text-xs">Secure</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="w-3 h-3" />
+                    <span className="text-xs">Trusted</span>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     );
   }
 
+  // Main App Interface
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900">
-      {/* Navigation */}
-      <div className="bg-white bg-opacity-10 backdrop-blur border-b border-white border-opacity-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-purple-900" />
-                </div>
-                <span className="text-xl font-bold text-white">Glass Slipper</span>
-              </div>
+      <div className="container mx-auto p-4">
+        {/* Header */}
+        <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-8 h-8 text-yellow-400" />
+              <h1 className="text-2xl font-bold text-white">Glass Slipper</h1>
+            </div>
 
-              {/* Desktop Navigation */}
-              <nav className="hidden md:flex items-center space-x-1">
+            {/* Navigation */}
+            <div className="hidden md:block">
+              <nav className="flex items-center space-x-2">
                 <button
                   onClick={() => setCurrentView('dashboard')}
                   className={`px-4 py-2 rounded-lg transition-all ${
@@ -937,6 +789,16 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   }`}
                 >
                   Dashboard
+                </button>
+                <button
+                  onClick={() => setCurrentView('tasks')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    currentView === 'tasks'
+                      ? 'bg-white bg-opacity-20 text-white'
+                      : 'text-white text-opacity-70 hover:text-white hover:bg-white hover:bg-opacity-10'
+                  }`}
+                >
+                  Tasks
                 </button>
                 <button
                   onClick={() => setCurrentView('contacts')}
@@ -967,6 +829,16 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   }`}
                 >
                   Lead Magnets
+                </button>
+                <button
+                  onClick={() => setCurrentView('messages')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    currentView === 'messages'
+                      ? 'bg-white bg-opacity-20 text-white'
+                      : 'text-white text-opacity-70 hover:text-white hover:bg-white hover:bg-opacity-10'
+                  }`}
+                >
+                  Messages
                 </button>
                 <button
                   onClick={() => setCurrentView('settings')}
@@ -1004,7 +876,7 @@ Start with the chosen format and make it incredibly valuable for their specific 
             </div>
           </div>
 
-          {/* Mobile Navigation */}
+          {/* Mobile Navigation - Updated to include Tasks (Change 1) */}
           {showMobileMenu && (
             <div className="md:hidden pb-4">
               <div className="space-y-2">
@@ -1017,6 +889,16 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   }`}
                 >
                   Dashboard
+                </button>
+                <button
+                  onClick={() => { setCurrentView('tasks'); setShowMobileMenu(false); }}
+                  className={`block w-full text-left px-4 py-2 rounded-lg transition-all ${
+                    currentView === 'tasks'
+                      ? 'bg-white bg-opacity-20 text-white'
+                      : 'text-white text-opacity-70'
+                  }`}
+                >
+                  Tasks
                 </button>
                 <button
                   onClick={() => { setCurrentView('contacts'); setShowMobileMenu(false); }}
@@ -1049,6 +931,16 @@ Start with the chosen format and make it incredibly valuable for their specific 
                   Lead Magnets
                 </button>
                 <button
+                  onClick={() => { setCurrentView('messages'); setShowMobileMenu(false); }}
+                  className={`block w-full text-left px-4 py-2 rounded-lg transition-all ${
+                    currentView === 'messages'
+                      ? 'bg-white bg-opacity-20 text-white'
+                      : 'text-white text-opacity-70'
+                  }`}
+                >
+                  Messages
+                </button>
+                <button
                   onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }}
                   className={`block w-full text-left px-4 py-2 rounded-lg transition-all ${
                     currentView === 'settings'
@@ -1062,113 +954,147 @@ Start with the chosen format and make it incredibly valuable for their specific 
             </div>
           )}
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Dashboard View */}
+        {/* Main Content */}
         {currentView === 'dashboard' && (
-          <div className="space-y-8">
-            {/* Welcome Section */}
-            <div className="text-center space-y-4">
-              <h1 className="text-3xl font-bold text-white">Welcome to Glass Slipper</h1>
-              <p className="text-white text-opacity-80 max-w-2xl mx-auto">
-                Your AI-powered ABM platform is ready to transform your LinkedIn connections into strategic business relationships.
-              </p>
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-white mb-2">Welcome to Glass Slipper</h1>
+              <p className="text-white text-opacity-70">Your LinkedIn relationship management dashboard</p>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Total Contacts</p>
-                    <p className="text-3xl font-bold text-white">{totalContacts}</p>
-                  </div>
-                  <Users className="w-8 h-8 text-blue-400" />
-                </div>
-              </div>
-
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-opacity-70 text-sm">Enrichments Left</p>
-                    <p className="text-3xl font-bold text-white">{enrichmentsLeft}</p>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div 
+                onClick={() => {
+                  setContactFilter('all');
+                  setCurrentView('contacts');
+                }}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white cursor-pointer hover:bg-opacity-15 transition-all"
+              >
+                <div className="flex items-center space-x-3">
                   <Zap className="w-8 h-8 text-yellow-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{enrichmentsLeft}</p>
+                    <p className="text-white text-opacity-70 text-sm">Enrichments Left</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <div className="flex items-center justify-between">
+              <div 
+                onClick={() => setCurrentView('contacts')}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white cursor-pointer hover:bg-opacity-15 transition-all"
+              >
+                <div className="flex items-center space-x-3">
+                  <Users className="w-8 h-8 text-blue-400" />
                   <div>
-                    <p className="text-white text-opacity-70 text-sm">Ideal Clients</p>
-                    <p className="text-3xl font-bold text-white">{idealClients}</p>
+                    <p className="text-2xl font-bold">{contacts.length}</p>
+                    <p className="text-white text-opacity-70 text-sm">Total Contacts</p>
                   </div>
+                </div>
+              </div>
+
+              <div 
+                onClick={() => {
+                  setContactFilter('Ideal Client');
+                  setCurrentView('contacts');
+                }}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white cursor-pointer hover:bg-opacity-15 transition-all"
+              >
+                <div className="flex items-center space-x-3">
                   <Target className="w-8 h-8 text-green-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{contacts.filter(c => c.category === 'Ideal Client').length}</p>
+                    <p className="text-white text-opacity-70 text-sm">Ideal Clients</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                <div className="flex items-center space-x-3">
+                  <UserCheck className="w-8 h-8 text-purple-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{contacts.filter(c => c.enriched).length}</p>
+                    <p className="text-white text-opacity-70 text-sm">Enriched</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Top 5 Tasks */}
+            {/* Recent Contacts with Task Progress (Change 5) */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-white">Top 5 Tasks</h2>
-                <BarChart3 className="w-6 h-6 text-white text-opacity-70" />
-              </div>
-              <div className="space-y-3">
-                {topTasks.map((task, index) => (
-                  <div key={task.id} className="flex items-center space-x-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
-                      task.priority === 'high' ? 'bg-red-500' : 
-                      task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                    } text-white`}>
-                      {index + 1}
+              <h2 className="text-xl font-semibold text-white mb-6">Recent Contacts</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {contacts.slice(0, 6).map(contact => (
+                  <div key={contact.id} className="bg-white bg-opacity-5 rounded-lg p-4 hover:bg-opacity-10 transition-all cursor-pointer">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-medium text-white">{contact.firstName} {contact.lastName}</h3>
+                        <p className="text-white text-opacity-70 text-sm">{contact.position}</p>
+                        <p className="text-white text-opacity-60 text-xs">{contact.company}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        contact.category === 'Ideal Client' 
+                          ? 'bg-green-500 bg-opacity-20 text-green-300'
+                          : contact.category === 'Referral Partner'
+                          ? 'bg-blue-500 bg-opacity-20 text-blue-300'
+                          : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                      }`}>
+                        {contact.category}
+                      </span>
                     </div>
-                    <span className="text-white flex-1">{task.text}</span>
-                    <button
-                      onClick={() => setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: true } : t))}
-                      className="text-white text-opacity-50 hover:text-opacity-80"
-                    >
-                      <CheckCircle className="w-5 h-5" />
-                    </button>
+
+                    <div className="mb-3">
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                        contact.enriched 
+                          ? 'bg-green-500 bg-opacity-20 text-green-300' 
+                          : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                      }`}>
+                        {contact.enriched ? 'Enriched' : 'Basic'}
+                      </span>
+                    </div>
+
+                    {/* Contact Tasks Progress (Change 5 Addition) */}
+                    {contact.category === 'Ideal Client' && (() => {
+                      const contactTasksList = getContactTasks(contact.id);
+                      const completedTasks = contactTasksList.filter(task => task.completed).length;
+                      const totalTasks = contactTasksList.length;
+                      
+                      if (totalTasks > 0) {
+                        return (
+                          <div className="mt-4 pt-4 border-t border-white border-opacity-10">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-white text-opacity-70">Tasks Progress</span>
+                              <span className="text-white">{completedTasks}/{totalTasks}</span>
+                            </div>
+                            <div className="w-full bg-white bg-opacity-10 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-green-400 h-2 rounded-full transition-all"
+                                style={{ width: `${totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Ideal Clients Call to Action */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-              <div className="space-y-4">
-                <Target className="w-12 h-12 text-green-400 mx-auto" />
-                <h3 className="text-xl font-semibold text-white">
-                  You have {idealClients} ideal clients who could work with you
-                </h3>
-                <p className="text-white text-opacity-70">
-                  Start building relationships now!
-                </p>
-                <button
-                  onClick={() => setCurrentView('contacts')}
-                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all"
-                >
-                  View Ideal Clients
-                </button>
-              </div>
-            </div>
-
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Quick Start</h3>
-                <p className="text-white text-opacity-70 mb-4">
-                  Upload your LinkedIn connections and let AI categorise them
-                </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                <Building className="w-8 h-8 text-blue-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Upload Contacts</h3>
+                <p className="text-white text-opacity-70 mb-4">Import your LinkedIn connections</p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
                 >
-                  <Upload className="w-5 h-5" />
-                  <span>Upload Contacts</span>
+                  <Upload className="w-4 h-4" />
+                  <span>Upload CSV</span>
                 </button>
                 <input
                   ref={fileInputRef}
@@ -1179,18 +1105,181 @@ Start with the chosen format and make it incredibly valuable for their specific 
                 />
               </div>
 
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Configure Settings</h3>
-                <p className="text-white text-opacity-70 mb-4">
-                  Set up your business profile for better AI results
-                </p>
-                <button
-                  onClick={() => setCurrentView('settings')}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Configure Settings</span>
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                <BarChart3 className="w-8 h-8 text-green-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">View Analytics</h3>
+                <p className="text-white text-opacity-70 mb-4">Track your engagement metrics</p>
+                <button className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                  Coming Soon
                 </button>
+              </div>
+
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                <Calendar className="w-8 h-8 text-purple-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Schedule Posts</h3>
+                <p className="text-white text-opacity-70 mb-4">Plan your content calendar</p>
+                <button className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                  Coming Soon
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tasks View (Change 1 - Complete Implementation) */}
+        {currentView === 'tasks' && (
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-white">Tasks</h1>
+              <div className="text-white text-opacity-70">
+                <span className="text-sm">
+                  {new Date().toLocaleDateString('en-GB', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Daily Tasks Section */}
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-white">Daily Tasks</h2>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                    <span className="text-white text-opacity-70 text-sm">
+                      {dailyTasks.filter(t => t.completed).length}/{dailyTasks.length} Complete
+                    </span>
+                  </div>
+                </div>
+
+                {allDailyTasksComplete ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">Congratulations!</h3>
+                    <p className="text-white text-opacity-70">
+                      Come back tomorrow for more tasks!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {dailyTasks.filter(task => !task.completed).map(task => (
+                      <div key={task.id} className="flex items-center space-x-3 p-3 bg-white bg-opacity-5 rounded-lg">
+                        <button
+                          onClick={() => completeDailyTask(task.id)}
+                          className="w-5 h-5 border-2 border-white border-opacity-50 rounded hover:border-yellow-400 hover:bg-yellow-400 hover:bg-opacity-20 transition-all flex items-center justify-center"
+                        >
+                          {task.completed && <CheckCircle className="w-4 h-4 text-yellow-400" />}
+                        </button>
+                        <span className="text-white flex-1">{task.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Contact-Specific Tasks Section (Change 3 - Enhanced with Setup Tasks) */}
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-white">
+                    {setupComplete ? 'Contact Tasks' : 'Setup Tasks'}
+                  </h2>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${setupComplete ? 'bg-green-400' : 'bg-orange-400'}`}></div>
+                    <span className="text-white text-opacity-70 text-sm">
+                      {setupComplete ? 'Complete' : 'Setup Required'}
+                    </span>
+                  </div>
+                </div>
+
+                {!setupComplete ? (
+                  <div className="space-y-4">
+                    <div className="bg-orange-500 bg-opacity-20 rounded-lg p-4 mb-4">
+                      <h3 className="text-orange-300 font-medium mb-2">Complete Setup First</h3>
+                      <p className="text-orange-200 text-sm">
+                        Finish these setup tasks to unlock contact-specific tasks
+                      </p>
+                    </div>
+
+                    {setupTasks.map(task => (
+                      <div key={task.id} className="flex items-center space-x-3 p-3 bg-white bg-opacity-5 rounded-lg">
+                        <button
+                          className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                            task.completed 
+                              ? 'border-green-500 bg-green-500' 
+                              : 'border-white border-opacity-50 hover:border-orange-400'
+                          }`}
+                        >
+                          {task.completed && <CheckCircle className="w-4 h-4 text-white" />}
+                        </button>
+                        <span className={`flex-1 ${task.completed ? 'text-white line-through' : 'text-white'}`}>
+                          {task.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {(() => {
+                      const contactSpecificTasks = getContactSpecificTasks();
+                      
+                      if (contactSpecificTasks.length === 0) {
+                        return (
+                          <div className="text-center py-8">
+                            <Users className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-white mb-2">No Ideal Clients Found</h3>
+                            <p className="text-white text-opacity-70 text-sm">
+                              Add some ideal clients to see contact-specific tasks
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return contactSpecificTasks.map(({ contact, tasks }) => (
+                        <div key={contact.id} className="bg-white bg-opacity-5 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-medium text-white">
+                              {contact.firstName} {contact.lastName}
+                            </h3>
+                            <span className="text-white text-opacity-60 text-xs">
+                              {contact.company}
+                            </span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {tasks.map(({ key, label, completed, completedDate }) => (
+                              <div key={key} className="flex items-center space-x-3">
+                                <button
+                                  onClick={() => completeContactTask(contact.id, key)}
+                                  className={`w-4 h-4 border rounded flex items-center justify-center transition-all ${
+                                    completed 
+                                      ? 'border-green-500 bg-green-500' 
+                                      : 'border-gray-300 hover:border-green-400'
+                                  }`}
+                                >
+                                  {completed && <CheckCircle className="w-4 h-4 text-white" />}
+                                </button>
+                                <div className="flex-1">
+                                  <span className={`text-sm ${completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                                    {label}
+                                  </span>
+                                  {completed && completedDate && (
+                                    <p className="text-xs text-gray-400">
+                                      Completed {new Date(completedDate).toLocaleDateString('en-GB')}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ));
+                          })}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1200,25 +1289,30 @@ Start with the chosen format and make it incredibly valuable for their specific 
         {currentView === 'contacts' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-white">Contacts</h1>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Contacts</h1>
+                {contactFilter !== 'all' && (
+                  <p className="text-white text-opacity-70">
+                    Showing: {contactFilter} ({contacts.filter(c => c.category === contactFilter).length} contacts)
+                  </p>
+                )}
+              </div>
               <div className="flex items-center space-x-4">
-                <button
-                  onClick={enrichIdealClients}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                <select
+                  value={contactFilter}
+                  onChange={(e) => setContactFilter(e.target.value)}
+                  className="bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white px-3 py-2 focus:outline-none focus:border-yellow-400"
                 >
-                  <Zap className="w-4 h-4" />
-                  <span>Enrich Ideal Clients</span>
-                </button>
+                  <option value="all">All Contacts</option>
+                  <option value="Ideal Client">Ideal Clients</option>
+                  <option value="Referral Partner">Referral Partners</option>
+                  <option value="Industry Contact">Industry Contacts</option>
+                  <option value="Past Client">Past Clients</option>
+                  <option value="Uncategorised">Uncategorised</option>
+                </select>
                 <button
-                  onClick={aiCategorizeAll}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
-                >
-                  <Target className="w-4 h-4" />
-                  <span>AI Categorize All</span>
-                </button>
-                <button
-                  onClick={() => setShowAddContactModal(true)}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2"
+                  onClick={addContact}
+                  className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add Contact</span>
@@ -1226,172 +1320,109 @@ Start with the chosen format and make it incredibly valuable for their specific 
               </div>
             </div>
 
-            {/* Category Filters */}
-            <div className="flex flex-wrap gap-2">
-              {['All', 'Ideal Client', 'Referral Partners', 'Competitors', 'Other', 'Uncategorised'].map(category => (
-                <button
-                  key={category}
-                  className="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg transition-all"
-                >
-                  {category}
-                  <span className="ml-2 text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full">
-                    {category === 'All' ? contacts.length : contacts.filter(c => c.category === category).length}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Contacts Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {contacts.map(contact => (
-                <div
-                  key={contact.id}
-                  className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all cursor-pointer"
-                  onClick={() => {
-                    setSelectedContact(contact);
-                    setShowContactModal(true);
-                  }}
-                >
+              {contacts
+                .filter(contact => contactFilter === 'all' || contact.category === contactFilter)
+                .map(contact => (
+                <div key={contact.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white">{contact.name}</h3>
-                      <p className="text-white text-opacity-70 text-sm">{contact.company}</p>
-                      <p className="text-white text-opacity-50 text-xs">{contact.position}</p>
+                    <div>
+                      <h3 className="text-lg font-semibold">{contact.firstName} {contact.lastName}</h3>
+                      <p className="text-white text-opacity-70 text-sm">{contact.position}</p>
+                      <p className="text-white text-opacity-60 text-xs">{contact.company}</p>
                     </div>
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      contact.category === 'Ideal Client' ? 'bg-green-500 text-white' :
-                      contact.category === 'Referral Partners' ? 'bg-blue-500 text-white' :
-                      contact.category === 'Competitors' ? 'bg-red-500 text-white' :
-                      contact.category === 'Other' ? 'bg-yellow-500 text-white' :
-                      'bg-gray-500 text-white'
-                    }`}>
-                      {contact.category}
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSelectedContact(contact)}
+                        className="text-white text-opacity-70 hover:text-white transition-colors"
+                      >
+                        <User className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteContact(contact.id)}
+                        className="text-red-400 hover:text-red-300 transition-colors text-sm"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      {contact.isEnriched && (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      )}
-                      <span className="text-white text-opacity-70 text-sm">
-                        {contact.isEnriched ? 'Enriched' : 'Not enriched'}
-                      </span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        generateLeadMagnet(contact.id);
-                      }}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-medium transition-all"
-                    >
-                      Generate Lead Magnet
-                    </button>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      contact.category === 'Ideal Client' 
+                        ? 'bg-green-500 bg-opacity-20 text-green-300'
+                        : contact.category === 'Referral Partner'
+                        ? 'bg-blue-500 bg-opacity-20 text-blue-300'
+                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                    }`}>
+                      {contact.category}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      contact.enriched 
+                        ? 'bg-green-500 bg-opacity-20 text-green-300' 
+                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                    }`}>
+                      {contact.enriched ? 'Enriched' : 'Basic'}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-
-            {contacts.length === 0 && (
-              <div className="text-center py-12">
-                <Users className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
-                <h3 className="text-xl font-medium text-white mb-2">No contacts yet</h3>
-                <p className="text-white text-opacity-70 mb-6">
-                  Upload your LinkedIn connections or add contacts manually to get started
-                </p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all"
-                >
-                  Upload Contacts
-                </button>
-              </div>
-            )}
           </div>
         )}
 
         {/* Strategy View */}
         {currentView === 'strategy' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-white">LinkedIn Strategy</h1>
-              <button
-                onClick={generateStrategy}
-                className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                <span>Generate Strategy</span>
-              </button>
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-white">Strategy</h1>
+                                  <p className="text-white text-opacity-70">Define your LinkedIn networking strategy</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Input Section */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
               <div className="space-y-6">
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                  <h2 className="text-xl font-semibold text-white mb-4">Strategy Inputs</h2>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                        One Offer
-                      </label>
-                      <textarea
-                        value={strategy.oneOffer}
-                        onChange={(e) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
-                        className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                        placeholder="What is your main service or product offering?"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                        Ideal Referral Partners
-                      </label>
-                      <textarea
-                        value={strategy.idealReferralPartners}
-                        onChange={(e) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
-                        className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                        placeholder="Who are your ideal referral partners? (e.g., Business coaches, Marketing consultants)"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                        What Makes You Special
-                      </label>
-                      <textarea
-                        value={strategy.specialFactors}
-                        onChange={(e) => setStrategy(prev => ({ ...prev, specialFactors: e.target.value }))}
-                        className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                        placeholder="What unique value do you bring? What makes you different?"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    What is the ONE thing you want to sell to people on LinkedIn?
+                  </label>
+                  <textarea
+                    value={strategy.oneOffer}
+                    onChange={(e) => setStrategy({...strategy, oneOffer: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="3"
+                    placeholder="Describe your main offer..."
+                  />
                 </div>
-              </div>
 
-              {/* Generated Strategy */}
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Generated Strategy</h2>
-                
-                {strategy.generatedStrategy ? (
-                  <div className="prose prose-invert max-w-none">
-                    <div className="text-white text-opacity-90 whitespace-pre-wrap">
-                      {strategy.generatedStrategy}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <FileText className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">No strategy generated yet</h3>
-                    <p className="text-white text-opacity-70 mb-6">
-                      Fill in the strategy inputs and click "Generate Strategy" to create your personalized LinkedIn strategy
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    Who are your ideal referral partners?
+                  </label>
+                  <textarea
+                    value={strategy.idealReferralPartners}
+                    onChange={(e) => setStrategy({...strategy, idealReferralPartners: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="3"
+                    placeholder="Describe your ideal referral partners..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    What makes you special or different?
+                  </label>
+                  <textarea
+                    value={strategy.specialFactors}
+                    onChange={(e) => setStrategy({...strategy, specialFactors: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="3"
+                    placeholder="What's your unique value proposition..."
+                  />
+                </div>
+
+                <button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-3 px-4 rounded-lg transition-colors">
+                  Generate Strategy
+                </button>
               </div>
             </div>
           </div>
@@ -1402,462 +1433,634 @@ Start with the chosen format and make it incredibly valuable for their specific 
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-white">Lead Magnets</h1>
-              <button
-                onClick={createGenericLeadMagnet}
-                className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Create Lead Magnet</span>
+              <button className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2">
+                <Plus className="w-4 h-4" />
+                <span>Create New</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {leadMagnets.map(magnet => (
-                <div
-                  key={magnet.id}
-                  className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all cursor-pointer"
-                  onClick={() => {
-                    setSelectedLeadMagnet(magnet);
-                    setShowLeadMagnetModal(true);
-                  }}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white">{magnet.title}</h3>
-                      <p className="text-white text-opacity-70 text-sm mt-2">{magnet.description}</p>
-                      
-                      {/* Show who it was created for if personalized */}
-                      {magnet.isPersonalized && magnet.contactName && (
-                        <div className="mt-3 p-2 bg-yellow-400 bg-opacity-20 rounded-lg">
-                          <p className="text-yellow-200 text-xs font-medium">
-                            Created for: {magnet.contactName}
-                            {magnet.company && ` at ${magnet.company}`}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {magnet.isPersonalized && (
-                        <div className="w-2 h-2 bg-green-400 rounded-full" title="Personalized"></div>
-                      )}
-                      <FileText className="w-6 h-6 text-yellow-400" />
-                    </div>
+                <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-white">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold mb-2">{magnet.title}</h3>
+                    <p className="text-white text-opacity-70 text-sm">{magnet.description}</p>
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-white text-opacity-50 text-xs">
-                      Created {new Date(magnet.createdAt).toLocaleDateString()}
+
+                  <div className="flex items-center justify-between text-xs text-white text-opacity-60 mb-4">
+                    <span>Created {new Date(magnet.createdAt).toLocaleDateString('en-GB')}</span>
+                    <span className={`px-2 py-1 rounded-full ${
+                      magnet.isPersonalized ? 'bg-green-500 bg-opacity-20 text-green-300' : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                    }`}>
+                      {magnet.isPersonalized ? 'Personalized' : 'Template'}
                     </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLeadMagnet(magnet);
-                        setShowLeadMagnetModal(true);
-                      }}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-medium transition-all"
-                    >
-                      View
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-2 px-3 rounded transition-colors">
+                      Edit
+                    </button>
+                    <button className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-3 rounded transition-colors">
+                      Download
                     </button>
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
 
-            {leadMagnets.length === 0 && (
-              <div className="text-center py-12">
-                <FileText className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
-                <h3 className="text-xl font-medium text-white mb-2">No lead magnets yet</h3>
-                <p className="text-white text-opacity-70 mb-6">
-                  Create your first lead magnet to start engaging with prospects
-                </p>
-                <button
-                  onClick={createGenericLeadMagnet}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all"
-                >
-                  Create First Lead Magnet
-                </button>
+        {/* Messages View */}
+        {currentView === 'messages' && (
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-white">Messages to Send</h1>
+              <p className="text-white text-opacity-70">Use these templates for your LinkedIn outreach</p>
+            </div>
+
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Message Templates</h2>
+              <div className="space-y-6">
+                <div className="bg-white bg-opacity-5 rounded-lg p-6">
+                  <h3 className="font-medium text-white mb-4 flex items-center space-x-2">
+                    <MessageSquare className="w-5 h-5" />
+                    <span>Message to Existing Contacts</span>
+                  </h3>
+                  <div className="bg-gray-800 bg-opacity-50 rounded-lg p-4 mb-4">
+                    <p className="text-white text-sm leading-relaxed font-mono">
+                      Hi [Name], Hope you're doing well! I've just put together a quick guide that might be useful - "[LEAD MAGNET TITLE]". [EXPLANATION OF LEAD MAGNET]. Thought it might be handy given we're both in the [INDUSTRY] world. Happy to send it over if you'd like a copy? No sales pitch attached - just sharing something that might help! Best, [YOUR NAME]
+                    </p>
+                  </div>
+                  <div className="text-white text-opacity-70 text-sm mb-4">
+                    <p><strong>How to use this template:</strong></p>
+                    <ul className="list-disc list-inside space-y-1 mt-2">
+                      <li>Replace [Name] with the contact's first name</li>
+                      <li>Replace [LEAD MAGNET TITLE] with your lead magnet title</li>
+                      <li>Replace [EXPLANATION OF LEAD MAGNET] with a brief description</li>
+                      <li>Replace [INDUSTRY] with the relevant industry</li>
+                      <li>Replace [YOUR NAME] with your name</li>
+                    </ul>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button 
+                      onClick={() => copyToClipboard("Hi [Name], Hope you're doing well! I've just put together a quick guide that might be useful - \"[LEAD MAGNET TITLE]\". [EXPLANATION OF LEAD MAGNET]. Thought it might be handy given we're both in the [INDUSTRY] world. Happy to send it over if you'd like a copy? No sales pitch attached - just sharing something that might help! Best, [YOUR NAME]")}
+                      className="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span>Copy Template</span>
+                    </button>
+                    <button 
+                      onClick={() => setCurrentView('contacts')}
+                      className="flex items-center space-x-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Generate for Contact</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white bg-opacity-5 rounded-lg p-6">
+                  <h3 className="font-medium text-white mb-3">💡 Tips for Better Engagement</h3>
+                  <ul className="text-white text-opacity-70 text-sm space-y-2 list-disc list-inside">
+                    <li>Personalise each message with specific details about their work or industry</li>
+                    <li>Always lead with value - what's in it for them?</li>
+                    <li>Keep messages conversational and friendly, not sales-y</li>
+                    <li>Follow up if they don't respond, but give it a few days</li>
+                    <li>Use the "Generate Message" button in individual contacts for personalised versions</li>
+                  </ul>
+                </div>
               </div>
-            )}
+
+              {copyFeedback && (
+                <div className="mt-4 text-center text-green-400 text-sm">
+                  {copyFeedback}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Settings View */}
         {currentView === 'settings' && (
           <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-white">Settings</h1>
-            
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-white">Settings</h1>
+              <p className="text-white text-opacity-70">Manage your account and preferences</p>
+            </div>
+
+            {/* Profile Information */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-6">Business Profile</h2>
-              
+              <h2 className="text-xl font-semibold text-white mb-6">Profile Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Business Type
-                  </label>
+                  <label className="block text-white font-medium mb-2">Full Name</label>
                   <input
                     type="text"
-                    value={user.businessType}
-                    onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
-                    className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                    placeholder="e.g., Marketing Agency, Consulting"
+                    value={user.name}
+                    onChange={(e) => setUser({...user, name: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    placeholder="Your full name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Target Market
-                  </label>
+                  <label className="block text-white font-medium mb-2">Email</label>
                   <input
-                    type="text"
-                    value={user.targetMarket}
-                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
-                    className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                    placeholder="e.g., Small businesses, Tech startups"
+                    type="email"
+                    value={user.email}
+                    onChange={(e) => setUser({...user, email: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    placeholder="your.email@company.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Referral Partners
-                  </label>
+                  <label className="block text-white font-medium mb-2">Company</label>
                   <input
                     type="text"
-                    value={user.referralPartners}
-                    onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
-                    className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                    placeholder="e.g., Business coaches, Web developers"
+                    value={user.company}
+                    onChange={(e) => setUser({...user, company: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    placeholder="Your company name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                    Writing Style
-                  </label>
-                  <select
-                    value={user.writingStyle}
-                    onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
-                    className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white focus:outline-none focus:border-yellow-400"
-                  >
-                    <option value="">Select writing style</option>
-                    <option value="professional">Professional</option>
-                    <option value="casual">Casual</option>
-                    <option value="technical">Technical</option>
-                    <option value="creative">Creative</option>
-                  </select>
+                  <label className="block text-white font-medium mb-2">Industry</label>
+                  <input
+                    type="text"
+                    value={user.industry}
+                    onChange={(e) => setUser({...user, industry: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    placeholder="Your industry"
+                  />
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => {
-                    setSuccessMessage('Settings saved successfully!');
-                    setShowSuccessModal(true);
-                  }}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-purple-900 px-6 py-3 rounded-lg font-medium transition-all"
-                >
-                  Save Settings
+              <div className="mt-6">
+                <button className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-2 px-6 rounded-lg transition-colors">
+                  Save Changes
                 </button>
+              </div>
+            </div>
+
+            {/* Writing Style Analysis (Change 6) */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-6">Writing Style Analysis</h2>
+              <p className="text-white text-opacity-70 mb-6">
+                Help us understand your unique writing style by answering these questions. This analysis will be used to create content that matches your voice.
+              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    Describe your business in as much detail as possible
+                  </label>
+                  <textarea
+                    value={writingQuestions.business}
+                    onChange={(e) => setWritingQuestions({...writingQuestions, business: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="6"
+                    maxLength="1000"
+                    placeholder="Describe your business, your role, what you do, who you serve, what makes you different..."
+                  />
+                  <p className="text-white text-opacity-50 text-xs mt-1">
+                    {writingQuestions.business.length}/1000 characters
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    Talk about your favourite hobby. What would a beginner need to know?
+                  </label>
+                  <textarea
+                    value={writingQuestions.hobby}
+                    onChange={(e) => setWritingQuestions({...writingQuestions, hobby: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="6"
+                    maxLength="1000"
+                    placeholder="Share your favourite hobby and what advice you'd give to someone just starting out..."
+                  />
+                  <p className="text-white text-opacity-50 text-xs mt-1">
+                    {writingQuestions.hobby.length}/1000 characters
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    Write about you. Tell your story!
+                  </label>
+                  <textarea
+                    value={writingQuestions.story}
+                    onChange={(e) => setWritingQuestions({...writingQuestions, story: e.target.value})}
+                    className="w-full p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400 focus:bg-opacity-20 transition-all"
+                    rows="6"
+                    maxLength="1000"
+                    placeholder="Tell your personal story, your journey, what led you to where you are today..."
+                  />
+                  <p className="text-white text-opacity-50 text-xs mt-1">
+                    {writingQuestions.story.length}/1000 characters
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={analyseWritingStyle}
+                    disabled={isAnalysing || !writingQuestions.business.trim() || !writingQuestions.hobby.trim() || !writingQuestions.story.trim()}
+                    className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                      isAnalysing || !writingQuestions.business.trim() || !writingQuestions.hobby.trim() || !writingQuestions.story.trim()
+                        ? 'bg-gray-500 bg-opacity-50 text-gray-300 cursor-not-allowed'
+                        : 'bg-purple-500 hover:bg-purple-600 text-white'
+                    }`}
+                  >
+                    {isAnalysing ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Analysing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Save & Analyse Writing Style</span>
+                        <ChevronRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Status Indicator */}
+                {writingStyle && (
+                  <div className="flex items-center space-x-2 text-green-400 text-sm">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Writing style analysed and saved</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contact Modal */}
+        {selectedContact && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {selectedContact.firstName} {selectedContact.lastName}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setSelectedContact(null);
+                      setGeneratedMessage(''); // Clear generated message when closing modal
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                      <input
+                        type="text"
+                        value={selectedContact.firstName}
+                        onChange={(e) => updateContact(selectedContact.id, { firstName: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        value={selectedContact.lastName}
+                        onChange={(e) => updateContact(selectedContact.id, { lastName: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                      <input
+                        type="text"
+                        value={selectedContact.company}
+                        onChange={(e) => updateContact(selectedContact.id, { company: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                      <input
+                        type="text"
+                        value={selectedContact.position}
+                        onChange={(e) => updateContact(selectedContact.id, { position: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={selectedContact.email}
+                      onChange={(e) => updateContact(selectedContact.id, { email: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={selectedContact.category}
+                      onChange={(e) => updateContact(selectedContact.id, { category: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="Uncategorised">Uncategorised</option>
+                      <option value="Ideal Client">Ideal Client</option>
+                      <option value="Referral Partner">Referral Partner</option>
+                      <option value="Industry Contact">Industry Contact</option>
+                      <option value="Past Client">Past Client</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <textarea
+                      value={selectedContact.notes}
+                      onChange={(e) => updateContact(selectedContact.id, { notes: e.target.value })}
+                      rows="4"
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      placeholder="Add notes about this contact..."
+                    />
+                  </div>
+
+                  {/* Enriched Data Section */}
+                  {selectedContact.enriched && (
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-green-900 mb-3">Enriched Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-green-800">Company Size:</span>
+                          <p className="text-green-700">{selectedContact.companySize}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-green-800">Industry:</span>
+                          <p className="text-green-700">{selectedContact.industry}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-green-800">Location:</span>
+                          <p className="text-green-700">{selectedContact.location}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Tasks (Change 5 Addition) */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Contact Tasks</h4>
+                    <div className="space-y-2">
+                      {(() => {
+                        const contactTasksList = getContactTasks(selectedContact.id);
+                        const iconMap = {
+                          viewProfile: User,
+                          turnOnNotifications: Target,
+                          sendMessage: Mail,
+                          followUp: ArrowRight,
+                          directOutreach: MessageSquare
+                        };
+
+                        return contactTasksList.map(({ key, label, completed, completedDate }) => {
+                          const Icon = iconMap[key] || Mail;
+                          
+                          return (
+                            <div key={key} className="flex items-center space-x-3">
+                              <button
+                                onClick={() => completeContactTask(selectedContact.id, key)}
+                                className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                                  completed 
+                                    ? 'border-green-500 bg-green-500' 
+                                    : 'border-gray-300 hover:border-green-400'
+                                }`}
+                              >
+                                {completed && <CheckCircle className="w-4 h-4 text-white" />}
+                              </button>
+                              <Icon className="w-4 h-4 text-gray-500" />
+                              <div className="flex-1">
+                                <span className={`text-sm ${completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                                  {label}
+                                </span>
+                                {completed && completedDate && (
+                                  <p className="text-xs text-gray-400">
+                                    Completed {new Date(completedDate).toLocaleDateString('en-GB')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Actions</h4>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => selectedContact.enriched ? null : enrichContact(selectedContact.id)}
+                          disabled={selectedContact.enriched || enrichmentsLeft <= 0}
+                          className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all ${
+                            selectedContact.enriched 
+                              ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                              : enrichmentsLeft <= 0
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-blue-500 hover:bg-blue-600 text-white'
+                          }`}
+                        >
+                          <Zap className="w-4 h-4" />
+                          <span>{selectedContact.enriched ? 'Enriched' : 'Enrich Contact'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => window.open(selectedContact.linkedinUrl, '_blank')}
+                          className="flex items-center justify-center space-x-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all"
+                        >
+                          <User className="w-4 h-4" />
+                          <span>View Profile</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => generateContactMessage(selectedContact)}
+                        disabled={isGeneratingMessage}
+                        className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all ${
+                          isGeneratingMessage
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-purple-500 hover:bg-purple-600 text-white'
+                        }`}
+                      >
+                        {isGeneratingMessage ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Generating Message...</span>
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="w-4 h-4" />
+                            <span>Generate Message</span>
+                          </>
+                        )}
+                      </button>
+
+                      {generatedMessage && (
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-medium text-gray-900">Generated Message</h5>
+                            <button
+                              onClick={() => copyToClipboard(generatedMessage)}
+                              className="flex items-center space-x-1 text-blue-600 hover:text-blue-700 text-sm"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>Copy</span>
+                            </button>
+                          </div>
+                          <p className="text-gray-700 text-sm leading-relaxed">{generatedMessage}</p>
+                          {copyFeedback && (
+                            <p className="text-green-600 text-xs mt-2">{copyFeedback}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => deleteContact(selectedContact.id)}
+                        className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all"
+                      >
+                        Delete Contact
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Contact Detail Modal */}
-      {showContactModal && selectedContact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowContactModal(false)} />
-          <div className="relative bg-gradient-to-br from-purple-900 to-indigo-900 rounded-xl shadow-2xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">{selectedContact.name}</h2>
-              <button
-                onClick={() => setShowContactModal(false)}
-                className="text-white text-opacity-70 hover:text-opacity-100"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Company</p>
-                  <p className="text-white font-medium">{selectedContact.company}</p>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Position</p>
-                  <p className="text-white font-medium">{selectedContact.position}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Category</p>
-                  <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                    selectedContact.category === 'Ideal Client' ? 'bg-green-500 text-white' :
-                    selectedContact.category === 'Referral Partners' ? 'bg-blue-500 text-white' :
-                    selectedContact.category === 'Competitors' ? 'bg-red-500 text-white' :
-                    selectedContact.category === 'Other' ? 'bg-yellow-500 text-white' :
-                    'bg-gray-500 text-white'
-                  }`}>
-                    {selectedContact.category}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">Phone</p>
-                  <p className="text-white font-medium">{selectedContact.phone}</p>
-                </div>
-              </div>
-
-              {selectedContact.linkedinProfile && (
-                <div>
-                  <p className="text-white text-opacity-70 text-sm">LinkedIn Profile</p>
-                  <a
-                    href={selectedContact.linkedinProfile}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 font-medium flex items-center space-x-1"
-                  >
-                    <span>View Profile</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-              )}
-
-              {selectedContact.isEnriched && selectedContact.enrichmentData && (
-                <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg">
-                  <h3 className="text-white font-medium mb-3">Enrichment Data</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-white text-opacity-70">Industry: </span>
-                      <span className="text-white">{selectedContact.enrichmentData.industry}</span>
-                    </div>
-                    <div>
-                      <span className="text-white text-opacity-70">Location: </span>
-                      <span className="text-white">{selectedContact.enrichmentData.location}</span>
-                    </div>
-                    <div>
-                      <span className="text-white text-opacity-70">Website: </span>
-                      <a
-                        href={selectedContact.enrichmentData.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300"
-                      >
-                        {selectedContact.enrichmentData.website}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex space-x-3 mt-6">
-                <button
-                  onClick={() => enrichContact(selectedContact.id)}
-                  disabled={selectedContact.isEnriched}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
-                    selectedContact.isEnriched
-                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  }`}
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>{selectedContact.isEnriched ? 'Enriched' : 'Enrich Data'}</span>
-                </button>
-                <button
-                  onClick={() => generateLeadMagnet(selectedContact.id)}
-                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Generate Lead Magnet</span>
-                </button>
-              </div>
-
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete this contact?')) {
-                    deleteContact(selectedContact.id);
-                  }
-                }}
-                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 px-4 rounded-lg font-medium transition-all mt-3"
-              >
-                Delete Contact
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Contact Modal */}
-      {showAddContactModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowAddContactModal(false)} />
-          <div className="relative bg-gradient-to-br from-purple-900 to-indigo-900 rounded-xl shadow-2xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Add New Contact</h2>
-              <button
-                onClick={() => setShowAddContactModal(false)}
-                className="text-white text-opacity-70 hover:text-opacity-100"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  value={contactForm.name}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                  placeholder="John Smith"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                  Company *
-                </label>
-                <input
-                  type="text"
-                  value={contactForm.company}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, company: e.target.value }))}
-                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                  placeholder="Company Name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                  Position
-                </label>
-                <input
-                  type="text"
-                  value={contactForm.position}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, position: e.target.value }))}
-                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                  placeholder="CEO, Manager, etc."
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  value={contactForm.phone}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                  placeholder="+44 20 1234 5678"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white text-opacity-90 text-sm font-medium mb-2">
-                  LinkedIn Profile URL
-                </label>
-                <input
-                  type="url"
-                  value={contactForm.linkedinProfile}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, linkedinProfile: e.target.value }))}
-                  className="w-full bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg p-3 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-yellow-400"
-                  placeholder="https://linkedin.com/in/username"
-                />
-              </div>
-
-              <div className="flex space-x-3 mt-6">
-                <button
-                  onClick={() => setShowAddContactModal(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-lg font-medium transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={addContact}
-                  disabled={!contactForm.name || !contactForm.company}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
-                    contactForm.name && contactForm.company
-                      ? 'bg-yellow-400 hover:bg-yellow-500 text-purple-900'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  Add Contact
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lead Magnet Modal */}
-      {showLeadMagnetModal && selectedLeadMagnet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowLeadMagnetModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      {/* Writing Style Analysis Modal (Change 6) */}
+      {showWritingStyleModal && writingStyle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-2xl font-bold text-gray-900">{selectedLeadMagnet.title}</h2>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Your Writing Style Analysis</h3>
+                <p className="text-gray-600 text-sm mt-1">
+                  This analysis will be used to create lead magnets that match your unique voice
+                </p>
+              </div>
               <button
-                onClick={() => setShowLeadMagnetModal(false)}
+                onClick={() => setShowWritingStyleModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="prose max-w-none">
-                <div className="whitespace-pre-wrap text-gray-700">
-                  {selectedLeadMagnet.content}
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Summary */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <h4 className="font-semibold text-purple-900 mb-2">Style Summary</h4>
+                <p className="text-purple-800">{writingStyle.summary}</p>
+              </div>
+
+              {/* Analysis Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Tone</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.tone}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Voice Characteristics</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.voice}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Sentence Structure</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.sentenceStructure}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Language Complexity</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.complexity}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Personality</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.personality}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Communication Style</h4>
+                    <p className="text-gray-700 text-sm">{writingStyle.communicationStyle}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Key Phrases</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {writingStyle.keyPhrases.map((phrase, index) => (
+                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                          "{phrase}"
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Writing Strengths</h4>
+                    <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                      {writingStyle.strengths.map((strength, index) => (
+                        <li key={index}>{strength}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  {writingStyle.britishPreference && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Language Preference</h4>
+                      <p className="text-gray-700 text-sm">{writingStyle.britishPreference}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Loading Modal */}
-      {showLoadingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black bg-opacity-50" />
-          <div className="relative bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center space-y-4">
-            <Loader className="w-12 h-12 text-purple-600 animate-spin" />
-            <p className="text-lg font-medium text-gray-900">{loadingMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowSuccessModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center space-y-4">
-            <CheckCircle className="w-12 h-12 text-green-500" />
-            <p className="text-lg font-medium text-gray-900">{successMessage}</p>
-            <button
-              onClick={() => setShowSuccessModal(false)}
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-all"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Upload Progress */}
-      {uploading && (
-        <div className="fixed bottom-4 right-4 bg-white bg-opacity-10 backdrop-blur rounded-xl p-4 w-80">
-          <div className="flex items-center space-x-3">
-            <Upload className="w-6 h-6 text-white" />
-            <div className="flex-1">
-              <p className="text-white font-medium">Uploading contacts...</p>
-              <div className="w-full bg-white bg-opacity-20 rounded-full h-2 mt-2">
-                <div
-                  className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => setShowWritingStyleModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWritingStyleModal(false);
+                    setCurrentView('lead-magnets');
+                  }}
+                  className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+                >
+                  Create Lead Magnet
+                </button>
               </div>
             </div>
           </div>
@@ -1865,6 +2068,4 @@ Start with the chosen format and make it incredibly valuable for their specific 
       )}
     </div>
   );
-};
-
-export default GlassSlipperApp;
+}
