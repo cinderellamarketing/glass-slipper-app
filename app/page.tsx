@@ -4,6 +4,85 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, Check, Phone, Globe, X, ChevronDown, Search, ChevronLeft, MessageSquare, Bell, TrendingDown, Award, AlertCircle, Edit2, Trash2, DollarSign, Clock, Activity, BookOpen, Download, Send, Copy, Share2, Star, Link, RefreshCw, Filter, MoreVertical, MapPin } from 'lucide-react';
 
+// Complete TypeScript interfaces
+interface Contact {
+  id: number;
+  name: string;
+  company: string;
+  position: string;
+  email: string;
+  category?: string;
+  isEnriched?: boolean;
+  phone?: string;
+  website?: string;
+}
+
+interface User {
+  name: string;
+  email: string;
+  company: string;
+  businessType: string;
+  targetMarket: string;
+  writingStyle: string;
+  referralPartners: string;
+}
+
+interface Task {
+  id: number;
+  text: string;
+  completed: boolean;
+  priority: 'high' | 'medium' | 'low';
+}
+
+interface LeadMagnet {
+  id: number;
+  title: string;
+  description: string;
+  type: string;
+  created: string;
+  downloads: number;
+  content: string;
+}
+
+interface Strategy {
+  oneOffer: string;
+  idealReferralPartners: string;
+  specialFactors: string;
+  generatedStrategy: string;
+}
+
+interface DailyTask {
+  completed: boolean;
+  count?: number;
+  total?: number;
+}
+
+interface DailyTasks {
+  chooseIdealClients: DailyTask;
+  commentOnPosts: DailyTask;
+  postContent: DailyTask;
+  lastReset: string;
+}
+
+interface AuthForm {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  name: string;
+  company: string;
+}
+
+interface ContactTaskStatus {
+  completed: boolean;
+  completedDate: string | null;
+}
+
+interface NavigationItem {
+  view: string;
+  label: string;
+  icon: any;
+}
+
 // ============================================
 // API CONFIGURATION  
 // ============================================
@@ -14,7 +93,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, T
 
 const GlassSlipperApp = () => {
   // User session state
-  const [currentUser, setCurrentUser] = useState({
+  const [currentUser, setCurrentUser] = useState<User>({
     name: 'John Smith',
     email: 'john@example.com', 
     company: 'Growth Dynamics Ltd',
@@ -25,10 +104,10 @@ const GlassSlipperApp = () => {
   });
 
   // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authView, setAuthView] = useState('landing');
-  const [showPassword, setShowPassword] = useState(false);
-  const [authForm, setAuthForm] = useState({
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authView, setAuthView] = useState<'landing' | 'login' | 'register'>('landing');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [authForm, setAuthForm] = useState<AuthForm>({
     email: '',
     password: '',
     confirmPassword: '',
@@ -37,30 +116,30 @@ const GlassSlipperApp = () => {
   });
 
   // UI state
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [showLoadingModal, setShowLoadingModal] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
-  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState(null);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const fileInputRef = useRef(null);
+  const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [showMobileMenu, setShowMobileMenu] = useState<boolean>(false);
+  const [showContactModal, setShowContactModal] = useState<boolean>(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showLoadingModal, setShowLoadingModal] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState<boolean>(false);
+  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState<LeadMagnet | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Business state
-  const [user, setUser] = useState(currentUser);
-  const [contacts, setContacts] = useState([]); // Start with empty contacts
+  const [user, setUser] = useState<User>(currentUser);
+  const [contacts, setContacts] = useState<Contact[]>([]); // Start with empty contacts
   const [categories] = useState(['Ideal Client', 'Referral Partners', 'Competitors', 'Other']);
 
   // Search and filter state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
   // Filtered contacts
-  const filteredContacts = contacts.filter(contact => {
+  const filteredContacts = contacts.filter((contact: Contact) => {
     const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.position.toLowerCase().includes(searchTerm.toLowerCase());
@@ -69,7 +148,7 @@ const GlassSlipperApp = () => {
   });
 
   // Strategy state
-  const [strategy, setStrategy] = useState({
+  const [strategy, setStrategy] = useState<Strategy>({
     oneOffer: '',
     idealReferralPartners: '',
     specialFactors: '',
@@ -77,13 +156,13 @@ const GlassSlipperApp = () => {
   });
 
   // Lead magnets state
-  const [leadMagnets, setLeadMagnets] = useState([]); // Start with empty lead magnets
+  const [leadMagnets, setLeadMagnets] = useState<LeadMagnet[]>([]); // Start with empty lead magnets
 
   // Enrichments counter
-  const [enrichmentsLeft, setEnrichmentsLeft] = useState(50);
+  const [enrichmentsLeft, setEnrichmentsLeft] = useState<number>(50);
 
   // Main onboarding tasks
-  const [tasks, setTasks] = useState([
+  const [tasks, setTasks] = useState<Task[]>([
     { id: 1, text: 'Upload your LinkedIn connections', completed: false, priority: 'high' },
     { id: 2, text: 'Configure your business settings', completed: false, priority: 'high' },
     { id: 3, text: 'Auto-categorise your contacts', completed: false, priority: 'medium' },
@@ -92,10 +171,10 @@ const GlassSlipperApp = () => {
   ]);
 
   // Contact task management state
-  const [contactTasks, setContactTasks] = useState({});
+  const [contactTasks, setContactTasks] = useState<Record<number, Record<string, ContactTaskStatus>>>({});
 
   // Daily tasks state
-  const [dailyTasks, setDailyTasks] = useState({
+  const [dailyTasks, setDailyTasks] = useState<DailyTasks>({
     chooseIdealClients: { completed: false, count: 0, total: 5 },
     commentOnPosts: { completed: false, count: 0, total: 5 },
     postContent: { completed: false },
@@ -103,11 +182,11 @@ const GlassSlipperApp = () => {
   });
 
   // Track which ideal client is currently being shown in dashboard
-  const [currentIdealClientIndex, setCurrentIdealClientIndex] = useState(0);
+  const [currentIdealClientIndex, setCurrentIdealClientIndex] = useState<number>(0);
 
   // UPDATED: File upload handler (unchanged)
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setLoadingMessage('Processing your LinkedIn connections...');
@@ -427,7 +506,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   };
 
   // Daily task functions
-  const toggleDailyTask = (taskKey) => {
+  const toggleDailyTask = (taskKey: keyof DailyTasks) => {
     setDailyTasks(prev => {
       const updated = { ...prev };
       if (taskKey === 'postContent') {
@@ -438,7 +517,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
           updated[taskKey].count = 0;
         } else {
           updated[taskKey].completed = true;
-          updated[taskKey].count = updated[taskKey].total;
+          updated[taskKey].count = updated[taskKey].total || 0;
         }
       }
       return updated;
@@ -446,7 +525,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   };
 
   // Update contact category
-  const updateCategory = (contactId, newCategory) => {
+  const updateCategory = (contactId: number, newCategory: string) => {
     setContacts(prev =>
       prev.map(contact =>
         contact.id === contactId
@@ -457,7 +536,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   };
 
   // Delete contact
-  const deleteContact = (contactId) => {
+  const deleteContact = (contactId: number) => {
     setContacts(prev => prev.filter(c => c.id !== contactId));
     setShowContactModal(false);
     setSuccessMessage('Contact deleted successfully!');
@@ -465,11 +544,11 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   };
 
   // Contact task functions
-  const getTaskStatus = (contactId, taskKey) => {
+  const getTaskStatus = (contactId: number, taskKey: string): ContactTaskStatus => {
     return contactTasks[contactId]?.[taskKey] || { completed: false, completedDate: null };
   };
 
-  const toggleContactTask = (contactId, taskKey) => {
+  const toggleContactTask = (contactId: number, taskKey: string) => {
     setContactTasks(prev => ({
       ...prev,
       [contactId]: {
@@ -483,7 +562,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   };
 
   // Download lead magnet
-  const downloadLeadMagnet = (leadMagnet) => {
+  const downloadLeadMagnet = (leadMagnet: LeadMagnet) => {
     const element = document.createElement('a');
     const file = new Blob([leadMagnet.content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
@@ -568,7 +647,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
   const currentIdealClient = idealClientsList[currentIdealClientIndex] || null;
 
   // Mobile menu items
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     { view: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { view: 'contacts', label: 'Contacts', icon: Users },
     { view: 'strategy', label: 'Strategy', icon: Target },
