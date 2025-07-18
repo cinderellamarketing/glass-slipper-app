@@ -64,7 +64,7 @@ Format as a comprehensive strategy document with clear sections and bullet point
     `;
 
     const claudeResponse = await anthropic.messages.create({
-      model: 'claude-3-sonnet-20240229',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       messages: [
         {

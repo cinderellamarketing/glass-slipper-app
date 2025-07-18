@@ -7,9 +7,19 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Categorize API called');
+    
+    // Check environment variables
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is missing');
+      return NextResponse.json({ error: 'API configuration error' }, { status: 500 });
+    }
+    
     const { contacts, userProfile } = await request.json();
+    console.log('Received contacts:', contacts?.length, 'user profile:', !!userProfile);
 
     if (!contacts || !Array.isArray(contacts) || !userProfile) {
+      console.error('Invalid request data');
       return NextResponse.json({ error: 'Invalid contacts data or user profile' }, { status: 400 });
     }
 
@@ -56,8 +66,9 @@ Return ONLY a JSON object with this structure:
 Be strategic and business-focused in your categorisations.
     `;
 
+    console.log('Calling Claude API...');
     const claudeResponse = await anthropic.messages.create({
-      model: 'claude-3-sonnet-20240229',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
       messages: [
         {
@@ -66,6 +77,8 @@ Be strategic and business-focused in your categorisations.
         }
       ]
     });
+    
+    console.log('Claude API response received, content length:', claudeResponse.content?.length);
 
     // Parse Claude's response
     let categorisationData: any;
@@ -84,6 +97,7 @@ Be strategic and business-focused in your categorisations.
     }
 
     // Apply categorisations to contacts
+    console.log('Applying categorisations to contacts...');
     const categorisedContacts = contacts.map(contact => {
       const categorisation = categorisationData.categorisations?.find(
         (cat: any) => cat.id === contact.id
@@ -95,13 +109,17 @@ Be strategic and business-focused in your categorisations.
       };
     });
 
+    console.log('Successfully categorised contacts:', categorisedContacts.length);
     return NextResponse.json({ 
       contacts: categorisedContacts,
       message: `Successfully categorised ${categorisedContacts.length} contacts`
     });
 
   } catch (error) {
-    console.error('Categorisation API error:', error);
+    console.error('Categorisation API error details:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    
     return NextResponse.json(
       { error: 'Failed to categorise contacts. Please try again.' },
       { status: 500 }

@@ -165,9 +165,10 @@ const GlassSlipperApp = () => {
   const [tasks, setTasks] = useState<Task[]>([
     { id: 1, text: 'Upload your LinkedIn connections', completed: false, priority: 'high' },
     { id: 2, text: 'Configure your business settings', completed: false, priority: 'high' },
-    { id: 3, text: 'Auto-categorise your contacts', completed: false, priority: 'medium' },
-    { id: 4, text: 'Generate your LinkedIn strategy', completed: false, priority: 'medium' },
-    { id: 5, text: 'Create your first lead magnet', completed: false, priority: 'low' }
+    { id: 3, text: 'Enrich your contacts with real data', completed: false, priority: 'medium' },
+    { id: 4, text: 'Auto-categorise your contacts', completed: false, priority: 'medium' },
+    { id: 5, text: 'Generate your LinkedIn strategy', completed: false, priority: 'medium' },
+    { id: 6, text: 'Create your first lead magnet', completed: false, priority: 'low' }
   ]);
 
   // Contact task management state
@@ -247,23 +248,40 @@ const GlassSlipperApp = () => {
     reader.readAsText(file);
   };
 
-  // UPDATED: Enrich contacts using Next.js API route
+  // UPDATED: Enrich contacts using Next.js API route - ALLOW ALL CONTACTS
   const enrichIdealClients = async () => {
-    const idealClientsToEnrich = contacts.filter(c => 
-      c.category === 'Ideal Client' && !c.isEnriched
-    );
+    // Changed: Allow enrichment of ANY contact, not just ideal clients
+    const contactsToEnrich = contacts.filter(c => !c.isEnriched);
 
-    if (idealClientsToEnrich.length === 0) {
-      alert('No ideal clients to enrich');
+    if (contactsToEnrich.length === 0) {
+      alert('No contacts to enrich');
       return;
     }
 
-    if (enrichmentsLeft < idealClientsToEnrich.length) {
+    if (enrichmentsLeft < contactsToEnrich.length) {
       alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
       return;
     }
 
-    setLoadingMessage(`Enriching ${idealClientsToEnrich.length} ideal clients with real data...`);
+    setLoadingMessage(`Enriching ${contactsToEnrich.length} contacts with real data...`);
+    setShowLoadingModal(true);
+
+  // UPDATED: Enrich contacts function - now includes task completion
+  const enrichIdealClients = async () => {
+    // Changed: Allow enrichment of ANY contact, not just ideal clients
+    const contactsToEnrich = contacts.filter(c => !c.isEnriched);
+
+    if (contactsToEnrich.length === 0) {
+      alert('No contacts to enrich');
+      return;
+    }
+
+    if (enrichmentsLeft < contactsToEnrich.length) {
+      alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
+      return;
+    }
+
+    setLoadingMessage(`Enriching ${contactsToEnrich.length} contacts with real data...`);
     setShowLoadingModal(true);
 
     try {
@@ -273,7 +291,7 @@ const GlassSlipperApp = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ contacts: idealClientsToEnrich })
+        body: JSON.stringify({ contacts: contactsToEnrich })
       });
 
       if (!response.ok) {
@@ -292,10 +310,15 @@ const GlassSlipperApp = () => {
       });
 
       setContacts(updatedContacts);
-      setEnrichmentsLeft(prev => prev - idealClientsToEnrich.length);
+      setEnrichmentsLeft(prev => prev - contactsToEnrich.length);
       setShowLoadingModal(false);
-      setSuccessMessage(`Successfully enriched ${idealClientsToEnrich.length} ideal clients with real data!`);
+      setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data!`);
       setShowSuccessModal(true);
+
+      // Mark enrichment task as complete
+      setTasks(prev => prev.map(task =>
+        task.id === 3 ? { ...task, completed: true } : task
+      ));
 
     } catch (error) {
       console.error('Enrichment failed:', error);
@@ -303,6 +326,7 @@ const GlassSlipperApp = () => {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       alert(`Enrichment failed: ${errorMessage}. Please check your API configuration.`);
     }
+  };
   };
 
   // UPDATED: AI categorisation using Next.js API route
@@ -336,9 +360,9 @@ const GlassSlipperApp = () => {
       setShowLoadingModal(false);
       setSuccessMessage('Successfully categorised all contacts using AI and enriched data!');
       setShowSuccessModal(true);
-      // Mark task as complete
+      // Mark categorization task as complete (now task 4)
       setTasks(prev => prev.map(task =>
-        task.id === 3 ? { ...task, completed: true } : task
+        task.id === 4 ? { ...task, completed: true } : task
       ));
 
     } catch (error) {
@@ -389,9 +413,9 @@ const GlassSlipperApp = () => {
       setShowLoadingModal(false);
       setSuccessMessage('Your LinkedIn strategy has been generated!');
       setShowSuccessModal(true);
-      // Mark task as complete
+      // Mark strategy task as complete (now task 5)
       setTasks(prev => prev.map(task =>
-        task.id === 4 ? { ...task, completed: true } : task
+        task.id === 5 ? { ...task, completed: true } : task
       ));
 
     } catch (error) {
@@ -505,9 +529,9 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
       setShowLoadingModal(false);
       setSuccessMessage('Your lead magnet has been created!');
       setShowSuccessModal(true);
-      // Mark task as complete
+      // Mark lead magnet task as complete (now task 6)
       setTasks(prev => prev.map(task =>
-        task.id === 5 ? { ...task, completed: true } : task
+        task.id === 6 ? { ...task, completed: true } : task
       ));
     }, 2500);
   };
@@ -1209,7 +1233,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                 <button
                   onClick={enrichIdealClients}
                   className="p-4 bg-white bg-opacity-10 rounded-lg hover:bg-opacity-20 transition-colors text-left"
-                  disabled={contacts.filter(c => c.category === 'Ideal Client' && !c.isEnriched).length === 0}
+                  disabled={contacts.filter(c => !c.isEnriched).length === 0}
                 >
                   <Zap className="w-6 h-6 text-yellow-400 mb-2" />
                   <h4 className="font-medium text-white">Enrich Contacts</h4>
@@ -1265,11 +1289,11 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
 
                 <button
                   onClick={enrichIdealClients}
-                  disabled={contacts.filter(c => c.category === 'Ideal Client' && !c.isEnriched).length === 0}
+                  disabled={contacts.filter(c => !c.isEnriched).length === 0}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                 >
                   <Zap className="w-4 h-4" />
-                  <span>Enrich ({enrichmentsLeft})</span>
+                  <span>Enrich All ({enrichmentsLeft})</span>
                 </button>
               </div>
             </div>
@@ -1673,6 +1697,15 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                       )}
                       {task.id === 3 && (
                         <button
+                          onClick={enrichIdealClients}
+                          disabled={task.completed || contacts.length === 0}
+                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Enrich
+                        </button>
+                      )}
+                      {task.id === 4 && (
+                        <button
                           onClick={aiCategorizeAll}
                           disabled={task.completed || contacts.length === 0}
                           className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
@@ -1680,7 +1713,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                           Categorise
                         </button>
                       )}
-                      {task.id === 4 && (
+                      {task.id === 5 && (
                         <button
                           onClick={() => setCurrentView('strategy')}
                           disabled={task.completed}
@@ -1689,7 +1722,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                           Create Strategy
                         </button>
                       )}
-                      {task.id === 5 && (
+                      {task.id === 6 && (
                         <button
                           onClick={generateLeadMagnet}
                           disabled={task.completed}
