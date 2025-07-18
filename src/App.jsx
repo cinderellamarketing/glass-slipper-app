@@ -1824,8 +1824,7 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="text-sm font-medium text-gray-900 mb-3">Contact Tasks</h4>
                     <div className="space-y-2">
-                      {(() => {
-                        const contactTasksList = getContactTasks(selectedContact.id);
+                      {getContactTasks(selectedContact.id).map(({ key, label, completed, completedDate }) => {
                         const iconMap = {
                           viewProfile: User,
                           turnOnNotifications: Target,
@@ -1833,37 +1832,34 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
                           followUp: ArrowRight,
                           directOutreach: MessageSquare
                         };
-
-                        return contactTasksList.map(({ key, label, completed, completedDate }) => {
-                          const Icon = iconMap[key] || Mail;
-                          
-                          return (
-                            <div key={key} className="flex items-center space-x-3">
-                              <button
-                                onClick={() => completeContactTask(selectedContact.id, key)}
-                                className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
-                                  completed 
-                                    ? 'border-green-500 bg-green-500' 
-                                    : 'border-gray-300 hover:border-green-400'
-                                }`}
-                              >
-                                {completed && <CheckCircle className="w-4 h-4 text-white" />}
-                              </button>
-                              <Icon className="w-4 h-4 text-gray-500" />
-                              <div className="flex-1">
-                                <span className={`text-sm ${completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                                  {label}
-                                </span>
-                                {completed && completedDate && (
-                                  <p className="text-xs text-gray-400">
-                                    Completed {new Date(completedDate).toLocaleDateString('en-GB')}
-                                  </p>
-                                )}
-                              </div>
+                        const Icon = iconMap[key] || Mail;
+                        
+                        return (
+                          <div key={key} className="flex items-center space-x-3">
+                            <button
+                              onClick={() => completeContactTask(selectedContact.id, key)}
+                              className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                                completed 
+                                  ? 'border-green-500 bg-green-500' 
+                                  : 'border-gray-300 hover:border-green-400'
+                              }`}
+                            >
+                              {completed && <CheckCircle className="w-4 h-4 text-white" />}
+                            </button>
+                            <Icon className="w-4 h-4 text-gray-500" />
+                            <div className="flex-1">
+                              <span className={`text-sm ${completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                                {label}
+                              </span>
+                              {completed && completedDate && (
+                                <p className="text-xs text-gray-400">
+                                  Completed {new Date(completedDate).toLocaleDateString('en-GB')}
+                                </p>
+                              )}
                             </div>
-                          );
-                        });
-                      })()}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
