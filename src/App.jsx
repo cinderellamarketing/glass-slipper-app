@@ -1273,8 +1273,8 @@ Your entire response MUST be valid JSON only, with no additional text or formatt
                                   )}
                                 </div>
                               </div>
-                            ));
-                          })}
+                            ))}
+                          </div>
                         </div>
                       ));
                     })()}
