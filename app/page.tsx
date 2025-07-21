@@ -250,85 +250,50 @@ const GlassSlipperApp = () => {
 
   // UPDATED: Enrich contacts using Next.js API route - ALLOW ALL CONTACTS
   const enrichIdealClients = async () => {
-    // Changed: Allow enrichment of ANY contact, not just ideal clients
-    const contactsToEnrich = contacts.filter(c => !c.isEnriched);
+  console.log('🚀 Enrichment function called');
+  
+  // Debug: Check contacts
+  console.log('📊 All contacts:', contacts);
+  console.log('📊 Total contacts:', contacts.length);
+  
+  const contactsToEnrich = contacts.filter(c => !c.isEnriched);
+  console.log('📊 Contacts to enrich:', contactsToEnrich);
+  console.log('📊 Contacts to enrich count:', contactsToEnrich.length);
 
-    if (contactsToEnrich.length === 0) {
-      alert('No contacts to enrich');
-      return;
-    }
+  if (contactsToEnrich.length === 0) {
+    console.log('❌ No contacts to enrich - exiting');
+    alert('No contacts to enrich');
+    return;
+  }
 
-    if (enrichmentsLeft < contactsToEnrich.length) {
-      alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
-      return;
-    }
+  console.log('📊 Enrichments left:', enrichmentsLeft);
+  
+  if (enrichmentsLeft < contactsToEnrich.length) {
+    console.log('❌ Not enough enrichments left - exiting');
+    alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
+    return;
+  }
 
-    setLoadingMessage(`Enriching ${contactsToEnrich.length} contacts with real data...`);
-    setShowLoadingModal(true);
+  console.log('✅ All checks passed - starting enrichment');
+  setLoadingMessage(`Enriching ${contactsToEnrich.length} contacts with real data...`);
+  setShowLoadingModal(true);
 
-  // UPDATED: Enrich contacts function - now includes task completion
-  const enrichIdealClients = async () => {
-    // Changed: Allow enrichment of ANY contact, not just ideal clients
-    const contactsToEnrich = contacts.filter(c => !c.isEnriched);
-
-    if (contactsToEnrich.length === 0) {
-      alert('No contacts to enrich');
-      return;
-    }
-
-    if (enrichmentsLeft < contactsToEnrich.length) {
-      alert(`You only have ${enrichmentsLeft} enrichments left. Please select specific contacts.`);
-      return;
-    }
-
-    setLoadingMessage(`Enriching ${contactsToEnrich.length} contacts with real data...`);
-    setShowLoadingModal(true);
-
-    try {
-      // Call our Next.js API route instead of direct Claude API
-      const response = await fetch('/api/enrich', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ contacts: contactsToEnrich })
-      });
-
-      if (!response.ok) {
-        throw new Error(`API call failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Update contacts with enriched data
-      const updatedContacts = contacts.map(contact => {
-        const enrichedContact = data.contacts.find((c: Contact) => c.id === contact.id);
-        return enrichedContact || contact;
-      });
-
-      setContacts(updatedContacts);
-      setEnrichmentsLeft(prev => prev - contactsToEnrich.length);
-      setShowLoadingModal(false);
-      setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data!`);
-      setShowSuccessModal(true);
-
-      // Mark enrichment task as complete
-      setTasks(prev => prev.map(task =>
-        task.id === 3 ? { ...task, completed: true } : task
-      ));
-
-    } catch (error) {
-      console.error('Enrichment failed:', error);
-      setShowLoadingModal(false);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Enrichment failed: ${errorMessage}. Please check your API configuration.`);
-    }
-  };
-  };
-
+  try {
+    console.log('🌐 Making API call to /api/enrich');
+    const response = await fetch('/api/enrich', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ contacts: contactsToEnrich })
+    });
+    
+    console.log('🌐 API response received:', response.status);
+    // ... rest of function
+  } catch (error) {
+    console.error('💥 Error occurred:', error);
+  }
+};
   // UPDATED: AI categorisation using Next.js API route
   const aiCategorizeAll = async () => {
     setLoadingMessage('AI is categorising your contacts using enriched data...');
