@@ -1,27 +1,16 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+import { NextRequest, NextResponse } from 'next/server';
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request: NextRequest) {
   try {
     console.log('🔍 API: Enrichment request received');
     
-    const { contacts } = req.body; // App sends array of contacts
+    const { contacts } = await request.json(); // App sends array of contacts
     
     if (!contacts || !Array.isArray(contacts)) {
       console.log('❌ API: Invalid contacts data');
-      return res.status(400).json({ 
+      return NextResponse.json({ 
         error: 'contacts array is required' 
-      });
+      }, { status: 400 });
     }
 
     console.log(`🔍 API: Processing ${contacts.length} contacts`);
@@ -159,21 +148,21 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
     console.log(`✅ API: Enrichment complete. Returning ${enrichedContacts.length} contacts`);
     
     // Return format that matches what the app expects
-    res.json({ 
+    return NextResponse.json({ 
       contacts: enrichedContacts 
     });
 
   } catch (error) {
     console.error('❌ API: Enrichment process failed:', error);
-    res.status(500).json({
+    return NextResponse.json({
       error: 'Enrichment failed',
       details: error.message
-    });
+    }, { status: 500 });
   }
 }
 
 // Helper function for web search
-async function performWebSearch(query) {
+async function performWebSearch(query: string) {
   try {
     console.log('🔍 SERPER: Making search request for:', query);
     
@@ -215,7 +204,7 @@ async function performWebSearch(query) {
 }
 
 // Helper function for Claude analysis
-async function performClaudeAnalysis(prompt) {
+async function performClaudeAnalysis(prompt: string) {
   try {
     console.log('🔍 CLAUDE: Making Claude API call...');
     
