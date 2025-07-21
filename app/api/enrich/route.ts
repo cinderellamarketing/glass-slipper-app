@@ -21,19 +21,21 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`🔍 API: Processing contact: ${contact.name} at ${contact.company}`);
         
-        // Step 1: Perform web searches using the app's field names
-        const personQuery = `"${contact.name}" "${contact.company}"`;
-        const companyQuery = `"${contact.company}" website contact phone`;
+        // Parse name to extract lastName
+        const nameParts = contact.name.split(' ');
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
         
-        console.log('🔍 API: Search queries:', { personQuery, companyQuery });
+        console.log(`🔍 API: Extracted lastName: ${lastName}`);
+        
+        // Single company-focused search
+        const companyQuery = `"${contact.company}" website phone contact information business`;
+        
+        console.log('🔍 API: Company search query:', companyQuery);
 
-        const [personResults, companyResults] = await Promise.all([
-          performWebSearch(personQuery),
-          performWebSearch(companyQuery)
-        ]);
+        console.log('🔍 SERPER: Making search request for:', companyQuery);
+        const companyResults = await performWebSearch(companyQuery);
 
         console.log('🔍 API: Search results received:', { 
-          personResults: personResults?.organic?.length || 0,
           companyResults: companyResults?.organic?.length || 0
         });
 
@@ -48,26 +50,26 @@ export async function POST(request: NextRequest) {
           console.log('⚠️ API: No company search results found');
         }
 
-        // Step 2: Use Claude to analyze results
+        // Updated Claude prompt focusing on company data
         const analysisPrompt = `
-Analyze these search results and extract contact information for:
-Name: ${contact.name}
-Company: ${contact.company}
-Position: ${contact.position}
+Analyze these search results for the company: ${contact.company}
 
-PERSON SEARCH RESULTS:
-${JSON.stringify(personResults?.organic?.slice(0, 5) || [], null, 2)}
+SEARCH RESULTS:
+${JSON.stringify(companyResults?.organic?.slice(0, 8) || [], null, 2)}
 
-COMPANY SEARCH RESULTS:
-${JSON.stringify(companyResults?.organic?.slice(0, 5) || [], null, 2)}
-
-Extract information and respond with ONLY this JSON format (no markdown, no code blocks):
+Extract and return ONLY this JSON format (no markdown, no code blocks):
 {
-  "phone": "UK format phone number or 'Not found'",
-  "industry": "Company industry or 'Not found'", 
-  "location": "City, Country or 'Not found'",
-  "website": "Company website URL or 'Not found'"
-}`;
+  "website": "Official company website URL or 'Not found'",
+  "phone": "Company phone number or 'Not found'",
+  "industry": "Industry/business type based on company description or 'Not found'"
+}
+
+Focus on finding:
+1. The official company website (usually the main company domain)
+2. A business phone number for the company  
+3. What industry/business type this company is in based on their description
+
+Return ONLY the JSON object, no other text.`;
 
         console.log('🔍 API: Calling Claude for analysis...');
         const enrichmentData = await performClaudeAnalysis(analysisPrompt);
@@ -91,35 +93,31 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
           
           parsedData = JSON.parse(cleanedResponse);
           console.log('✅ API: Successfully parsed Claude response:', parsedData);
-	  } catch (parseError) {
-  	  const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown parsing error';
-  	  console.log('❌ API: Claude parsing failed for', contact.name, '- using fallback. Error:', errorMessage);
+        } catch (parseError) {
+          const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown parsing error';
+          console.log('❌ API: Claude parsing failed for', contact.name, '- using fallback. Error:', errorMessage);
           parsedData = {
+            website: 'Parsing failed',
             phone: 'Parsing failed',
-            industry: 'Parsing failed',
-            location: 'Parsing failed', 
-            website: 'Parsing failed'
+            industry: 'Parsing failed'
           };
         }
 
-        // Format response to match what the app expects
+        // Format response with new structure - industry at contact level
         const enrichedContact = {
           ...contact,  // Keep all original contact data
+          lastName: lastName,
           isEnriched: true,
           phone: parsedData.phone || 'Not found',
           website: parsedData.website || 'Not found',
-          enrichmentData: {
-            industry: parsedData.industry || 'Not found',
-            location: parsedData.location || 'Not found',
-            website: parsedData.website || 'Not found',
-            linkedinProfile: `https://linkedin.com/in/${contact.name.toLowerCase().replace(/[^a-z]/g, '')}`
-          }
+          industry: parsedData.industry || 'Not found'
         };
 
         console.log(`✅ API: Successfully enriched ${contact.name} with data:`, {
+          lastName: enrichedContact.lastName,
           phone: enrichedContact.phone,
-          industry: enrichedContact.enrichmentData.industry,
-          website: enrichedContact.website
+          website: enrichedContact.website,
+          industry: enrichedContact.industry
         });
 
         enrichedContacts.push(enrichedContact);
@@ -127,22 +125,21 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
         // Rate limiting to avoid hitting API limits
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-	} catch (contactError) {
-  	const errorMessage = contactError instanceof Error ? contactError.message : 'Unknown contact error';
-  	console.error(`❌ API: Failed to enrich ${contact.name}:`, errorMessage);
+      } catch (contactError) {
+        const errorMessage = contactError instanceof Error ? contactError.message : 'Unknown contact error';
+        console.error(`❌ API: Failed to enrich ${contact.name}:`, errorMessage);
         
         // Add failed contact with fallback data so the app doesn't break
+        const nameParts = contact.name.split(' ');
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        
         enrichedContacts.push({
           ...contact,
+          lastName: lastName,
           isEnriched: true,
           phone: 'Search failed',
           website: 'Search failed',
-          enrichmentData: {
-            industry: 'Search failed',
-            location: 'Search failed', 
-            website: 'Search failed',
-            linkedinProfile: 'Search failed'
-          }
+          industry: 'Search failed'
         });
       }
     }
@@ -155,13 +152,13 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
     });
 
   } catch (error) {
-  console.error('❌ API: Enrichment process failed:', error);
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-  return NextResponse.json({
-    error: 'Enrichment failed',
-    details: errorMessage
-  }, { status: 500 });
-}
+    console.error('❌ API: Enrichment process failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json({
+      error: 'Enrichment failed',
+      details: errorMessage
+    }, { status: 500 });
+  }
 }
 
 // Helper function for web search
@@ -200,11 +197,11 @@ async function performWebSearch(query: string) {
     console.log('✅ SERPER: Search successful, results:', data.organic?.length || 0);
     
     return data;
- } catch (error) {
-  const errorMessage = error instanceof Error ? error.message : 'Unknown search error';
-  console.error('❌ SERPER: Search failed for query:', query, errorMessage);
-  throw error;
-}
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown search error';
+    console.error('❌ SERPER: Search failed for query:', query, errorMessage);
+    throw error;
+  }
 }
 
 // Helper function for Claude analysis
@@ -247,9 +244,9 @@ async function performClaudeAnalysis(prompt: string) {
     const data = await response.json();
     console.log('✅ CLAUDE: Analysis successful');
     return data.content[0].text;
-    } catch (error) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown Claude error';
     console.error('❌ CLAUDE: API failed:', errorMessage);
     throw error;
-}
+  }
 }
