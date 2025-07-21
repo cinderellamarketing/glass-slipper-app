@@ -1,159 +1,261 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-export async function POST(request: NextRequest) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    console.log('Enrich API called');
+    console.log('🔍 API: Enrichment request received');
     
-    // Check environment variables
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is missing');
-      return NextResponse.json({ error: 'API configuration error' }, { status: 500 });
-    }
+    const { contacts } = req.body; // App sends array of contacts
     
-    if (!process.env.SERPER_API_KEY) {
-      console.error('SERPER_API_KEY is missing');
-      return NextResponse.json({ error: 'Search API configuration error' }, { status: 500 });
-    }
-    
-    const { contacts } = await request.json();
-    console.log('Received contacts for enrichment:', contacts?.length);
-
     if (!contacts || !Array.isArray(contacts)) {
-      console.error('Invalid contacts data');
-      return NextResponse.json({ error: 'Invalid contacts data' }, { status: 400 });
+      console.log('❌ API: Invalid contacts data');
+      return res.status(400).json({ 
+        error: 'contacts array is required' 
+      });
     }
 
+    console.log(`🔍 API: Processing ${contacts.length} contacts`);
     const enrichedContacts = [];
 
+    // Process each contact
     for (const contact of contacts) {
       try {
-        console.log(`Enriching contact: ${contact.name}`);
+        console.log(`🔍 API: Processing contact: ${contact.name} at ${contact.company}`);
         
-        // Step 1: Search for contact information using Serper API
-        const searchQuery = `"${contact.name}" "${contact.company}" contact information phone email website`;
+        // Step 1: Perform web searches using the app's field names
+        const personQuery = `"${contact.name}" "${contact.company}"`;
+        const companyQuery = `"${contact.company}" website contact phone`;
         
-        console.log('Calling Serper API...');
-        const serperResponse = await fetch('https://google.serper.dev/search', {
-          method: 'POST',
-          headers: {
-            'X-API-KEY': process.env.SERPER_API_KEY || '',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            q: searchQuery,
-            num: 5
-          })
+        console.log('🔍 API: Search queries:', { personQuery, companyQuery });
+
+        const [personResults, companyResults] = await Promise.all([
+          performWebSearch(personQuery),
+          performWebSearch(companyQuery)
+        ]);
+
+        console.log('🔍 API: Search results received:', { 
+          personResults: personResults?.organic?.length || 0,
+          companyResults: companyResults?.organic?.length || 0
         });
 
-        if (!serperResponse.ok) {
-          console.error(`Serper API error: ${serperResponse.status}`);
+        // Log first search result for debugging
+        if (companyResults?.organic?.length > 0) {
+          console.log('🔍 API: First company result:', {
+            title: companyResults.organic[0].title,
+            link: companyResults.organic[0].link,
+            snippet: companyResults.organic[0].snippet?.substring(0, 100) + '...'
+          });
+        } else {
+          console.log('⚠️ API: No company search results found');
         }
 
-        const searchResults = await serperResponse.json();
-        console.log('Search results received:', !!searchResults.organic);
-
-        // Step 2: Use Claude to extract contact information from search results
-        const claudePrompt = `
-Given this person's information and search results, extract and format their contact details:
-
-Person: ${contact.name}
+        // Step 2: Use Claude to analyze results
+        const analysisPrompt = `
+Analyze these search results and extract contact information for:
+Name: ${contact.name}
 Company: ${contact.company}
 Position: ${contact.position}
 
-Search Results:
-${JSON.stringify(searchResults.organic?.slice(0, 3) || [], null, 2)}
+PERSON SEARCH RESULTS:
+${JSON.stringify(personResults?.organic?.slice(0, 5) || [], null, 2)}
 
-Please extract and return ONLY a JSON object with the following structure:
+COMPANY SEARCH RESULTS:
+${JSON.stringify(companyResults?.organic?.slice(0, 5) || [], null, 2)}
+
+Extract information and respond with ONLY this JSON format (no markdown, no code blocks):
 {
-  "phone": "phone number if found, otherwise 'Not found'",
-  "website": "company website if found, otherwise 'Not found'",
-  "enriched": true
-}
+  "phone": "UK format phone number or 'Not found'",
+  "industry": "Company industry or 'Not found'", 
+  "location": "City, Country or 'Not found'",
+  "website": "Company website URL or 'Not found'"
+}`;
 
-Rules:
-- Only return valid phone numbers and websites
-- If no reliable information is found, use "Not found"
-- Return only the JSON object, no other text
-        `;
-
-        console.log('Calling Claude API for enrichment...');
-        const claudeResponse = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [
-            {
-              role: 'user',
-              content: claudePrompt
-            }
-          ]
-        });
-
-        console.log('Claude enrichment response received');
-
+        console.log('🔍 API: Calling Claude for analysis...');
+        const enrichmentData = await performClaudeAnalysis(analysisPrompt);
+        console.log('🔍 API: Claude raw response:', enrichmentData.substring(0, 200) + '...');
+        
         // Parse Claude's response
-        let enrichmentData: any;
+        let parsedData;
         try {
-          const firstContent = claudeResponse.content[0];
-          if (firstContent.type !== 'text') {
-            throw new Error('Expected text response from Claude');
+          let cleanedResponse = enrichmentData.trim();
+          // Remove markdown code blocks
+          cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          
+          // Extract JSON object
+          const firstBrace = cleanedResponse.indexOf('{');
+          const lastBrace = cleanedResponse.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
           }
-          const responseText = firstContent.text;
-          // Remove any markdown formatting if present
-          const jsonText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          enrichmentData = JSON.parse(jsonText);
+          
+          console.log('🔍 API: Cleaned Claude response for parsing:', cleanedResponse.substring(0, 150) + '...');
+          
+          parsedData = JSON.parse(cleanedResponse);
+          console.log('✅ API: Successfully parsed Claude response:', parsedData);
         } catch (parseError) {
-          console.error('Failed to parse Claude response:', parseError);
-          enrichmentData = {
-            phone: 'Not found',
-            website: 'Not found',
-            enriched: false
+          console.log('❌ API: Claude parsing failed for', contact.name, '- using fallback. Error:', parseError.message);
+          parsedData = {
+            phone: 'Parsing failed',
+            industry: 'Parsing failed',
+            location: 'Parsing failed', 
+            website: 'Parsing failed'
           };
         }
 
-        // Create enriched contact
+        // Format response to match what the app expects
         const enrichedContact = {
-          ...contact,
-          phone: enrichmentData.phone || 'Not found',
-          website: enrichmentData.website || 'Not found',
-          isEnriched: true
+          ...contact,  // Keep all original contact data
+          isEnriched: true,
+          phone: parsedData.phone || 'Not found',
+          website: parsedData.website || 'Not found',
+          enrichmentData: {
+            industry: parsedData.industry || 'Not found',
+            location: parsedData.location || 'Not found',
+            website: parsedData.website || 'Not found',
+            linkedinProfile: `https://linkedin.com/in/${contact.name.toLowerCase().replace(/[^a-z]/g, '')}`
+          }
         };
 
+        console.log(`✅ API: Successfully enriched ${contact.name} with data:`, {
+          phone: enrichedContact.phone,
+          industry: enrichedContact.enrichmentData.industry,
+          website: enrichedContact.website
+        });
+
         enrichedContacts.push(enrichedContact);
-
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-      } catch (contactError) {
-        console.error(`Error enriching contact ${contact.name}:`, contactError);
         
-        // Return contact with enrichment failed
+        // Rate limiting to avoid hitting API limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (contactError) {
+        console.error(`❌ API: Failed to enrich ${contact.name}:`, contactError.message);
+        
+        // Add failed contact with fallback data so the app doesn't break
         enrichedContacts.push({
           ...contact,
-          phone: 'Not found',
-          website: 'Not found',
-          isEnriched: false
+          isEnriched: true,
+          phone: 'Search failed',
+          website: 'Search failed',
+          enrichmentData: {
+            industry: 'Search failed',
+            location: 'Search failed', 
+            website: 'Search failed',
+            linkedinProfile: 'Search failed'
+          }
         });
       }
     }
 
-    return NextResponse.json({ 
-      contacts: enrichedContacts,
-      message: `Successfully enriched ${enrichedContacts.length} contacts`
+    console.log(`✅ API: Enrichment complete. Returning ${enrichedContacts.length} contacts`);
+    
+    // Return format that matches what the app expects
+    res.json({ 
+      contacts: enrichedContacts 
     });
 
   } catch (error) {
-    console.error('Enrichment API error details:', error);
-    console.error('Error type:', typeof error);
-    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('❌ API: Enrichment process failed:', error);
+    res.status(500).json({
+      error: 'Enrichment failed',
+      details: error.message
+    });
+  }
+}
+
+// Helper function for web search
+async function performWebSearch(query) {
+  try {
+    console.log('🔍 SERPER: Making search request for:', query);
     
-    return NextResponse.json(
-      { error: 'Failed to enrich contacts. Please try again.' },
-      { status: 500 }
-    );
+    if (!process.env.SERPER_API_KEY) {
+      console.log('❌ SERPER: API key not found in environment');
+      throw new Error('SERPER_API_KEY not configured');
+    }
+
+    console.log('🔍 SERPER: Using API key:', process.env.SERPER_API_KEY.substring(0, 8) + '...');
+
+    const response = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': process.env.SERPER_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        q: query,
+        num: 10
+      })
+    });
+
+    console.log('🔍 SERPER: Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('❌ SERPER: Error response:', errorText);
+      throw new Error(`Search failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ SERPER: Search successful, results:', data.organic?.length || 0);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ SERPER: Search failed for query:', query, error.message);
+    throw error;
+  }
+}
+
+// Helper function for Claude analysis
+async function performClaudeAnalysis(prompt) {
+  try {
+    console.log('🔍 CLAUDE: Making Claude API call...');
+    
+    if (!process.env.CLAUDE_API_KEY) {
+      console.log('❌ CLAUDE: API key not found in environment');
+      throw new Error('CLAUDE_API_KEY not configured');
+    }
+
+    console.log('🔍 CLAUDE: Using API key:', process.env.CLAUDE_API_KEY.substring(0, 8) + '...');
+    
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
+      })
+    });
+
+    console.log('🔍 CLAUDE: Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('❌ CLAUDE: Error response:', errorText);
+      throw new Error(`Claude API failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ CLAUDE: Analysis successful');
+    return data.content[0].text;
+  } catch (error) {
+    console.error('❌ CLAUDE: API failed:', error.message);
+    throw error;
   }
 }
