@@ -314,6 +314,7 @@ const GlassSlipperApp = () => {
   setShowLoadingModal(false);
   alert(`Enrichment failed: ${error.message}`);
 }
+};
   // UPDATED: AI categorisation using Next.js API route
   const aiCategorizeAll = async () => {
     setLoadingMessage('AI is categorising your contacts using enriched data...');
