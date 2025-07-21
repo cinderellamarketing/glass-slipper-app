@@ -306,7 +306,7 @@ const GlassSlipperApp = () => {
     console.log('🔄 Updating contacts state...');
     // Update contacts with enriched data
     const updatedContacts = contacts.map(contact => {
-      const enrichedContact = data.contacts.find((c) => c.id === contact.id);
+    const enrichedContact = data.contacts.find((c: Contact) => c.id === contact.id);
       return enrichedContact || contact;
     });
 
