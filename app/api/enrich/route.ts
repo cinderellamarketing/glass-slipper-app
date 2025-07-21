@@ -91,8 +91,9 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
           
           parsedData = JSON.parse(cleanedResponse);
           console.log('✅ API: Successfully parsed Claude response:', parsedData);
-        } catch (parseError) {
-          console.log('❌ API: Claude parsing failed for', contact.name, '- using fallback. Error:', parseError.message);
+	  } catch (parseError) {
+  	  const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown parsing error';
+  	  console.log('❌ API: Claude parsing failed for', contact.name, '- using fallback. Error:', errorMessage);
           parsedData = {
             phone: 'Parsing failed',
             industry: 'Parsing failed',
@@ -126,8 +127,9 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
         // Rate limiting to avoid hitting API limits
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-      } catch (contactError) {
-        console.error(`❌ API: Failed to enrich ${contact.name}:`, contactError.message);
+	} catch (contactError) {
+  	const errorMessage = contactError instanceof Error ? contactError.message : 'Unknown contact error';
+  	console.error(`❌ API: Failed to enrich ${contact.name}:`, errorMessage);
         
         // Add failed contact with fallback data so the app doesn't break
         enrichedContacts.push({
@@ -153,12 +155,13 @@ Extract information and respond with ONLY this JSON format (no markdown, no code
     });
 
   } catch (error) {
-    console.error('❌ API: Enrichment process failed:', error);
-    return NextResponse.json({
-      error: 'Enrichment failed',
-      details: error.message
-    }, { status: 500 });
-  }
+  console.error('❌ API: Enrichment process failed:', error);
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+  return NextResponse.json({
+    error: 'Enrichment failed',
+    details: errorMessage
+  }, { status: 500 });
+}
 }
 
 // Helper function for web search
@@ -197,10 +200,11 @@ async function performWebSearch(query: string) {
     console.log('✅ SERPER: Search successful, results:', data.organic?.length || 0);
     
     return data;
-  } catch (error) {
-    console.error('❌ SERPER: Search failed for query:', query, error.message);
-    throw error;
-  }
+ } catch (error) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown search error';
+  console.error('❌ SERPER: Search failed for query:', query, errorMessage);
+  throw error;
+}
 }
 
 // Helper function for Claude analysis
@@ -243,8 +247,9 @@ async function performClaudeAnalysis(prompt: string) {
     const data = await response.json();
     console.log('✅ CLAUDE: Analysis successful');
     return data.content[0].text;
-  } catch (error) {
-    console.error('❌ CLAUDE: API failed:', error.message);
+    } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown Claude error';
+    console.error('❌ CLAUDE: API failed:', errorMessage);
     throw error;
-  }
+}
 }
