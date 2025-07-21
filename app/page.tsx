@@ -279,21 +279,41 @@ const GlassSlipperApp = () => {
   setShowLoadingModal(true);
 
   try {
-    console.log('🌐 Making API call to /api/enrich');
-    const response = await fetch('/api/enrich', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ contacts: contactsToEnrich })
-    });
-    
-    console.log('🌐 API response received:', response.status);
-    // ... rest of function
-  } catch (error) {
-    console.error('💥 Error occurred:', error);
+  console.log('🌐 API response received:', response.status);
+
+  if (!response.ok) {
+    throw new Error(`API call failed: ${response.status}`);
   }
-};
+
+  console.log('📥 Parsing response data...');
+  const data = await response.json();
+  console.log('📥 Response data:', data);
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  console.log('🔄 Updating contacts state...');
+  // Update contacts with enriched data
+  const updatedContacts = contacts.map(contact => {
+    const enrichedContact = data.contacts.find((c) => c.id === contact.id);
+    return enrichedContact || contact;
+  });
+
+  console.log('🔄 Updated contacts:', updatedContacts);
+  setContacts(updatedContacts);
+  console.log('✅ State updated successfully');
+  
+  setEnrichmentsLeft(prev => prev - contactsToEnrich.length);
+  setShowLoadingModal(false);
+  setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data!`);
+  setShowSuccessModal(true);
+
+} catch (error) {
+  console.error('💥 Error occurred:', error);
+  setShowLoadingModal(false);
+  alert(`Enrichment failed: ${error.message}`);
+}
   // UPDATED: AI categorisation using Next.js API route
   const aiCategorizeAll = async () => {
     setLoadingMessage('AI is categorising your contacts using enriched data...');
