@@ -319,11 +319,12 @@ const GlassSlipperApp = () => {
     setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data!`);
     setShowSuccessModal(true);
 
-  } catch (error) {
-    console.error('💥 Error occurred:', error);
-    setShowLoadingModal(false);
-    alert(`Enrichment failed: ${error.message}`);
-  }
+} catch (error) {
+  console.error('💥 Error occurred:', error);
+  setShowLoadingModal(false);
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+  alert(`Enrichment failed: ${errorMessage}`);
+}
 };
   // UPDATED: AI categorisation using Next.js API route
   const aiCategorizeAll = async () => {
