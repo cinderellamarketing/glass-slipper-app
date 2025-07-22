@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield, Users, Upload, Target, UserCheck, Building, BarChart3, Calendar, Settings, CheckCircle, User, Briefcase, Plus, TrendingUp, Zap, Menu, FileText, LogOut, Check, Phone, Globe, X, ChevronDown, Search, ChevronLeft, MessageSquare, Bell, TrendingDown, Award, AlertCircle, Edit2, Trash2, DollarSign, Clock, Activity, BookOpen, Download, Send, Copy, Share2, Star, Link, RefreshCw, Filter, MoreVertical, MapPin } from 'lucide-react';
 
-// Updated interfaces with lastName support
+// Complete TypeScript interfaces
 interface Contact {
   id: number;
   name: string;
-  lastName?: string; // ADD THIS LINE
   company: string;
   position: string;
   email: string;
@@ -15,7 +15,8 @@ interface Contact {
   isEnriched?: boolean;
   phone?: string;
   website?: string;
-  industry?: string; // ADD THIS LINE (for enrich.js compatibility)
+  lastName?: string;
+  industry?: string;
 }
 
 interface User {
@@ -84,10 +85,30 @@ interface NavigationItem {
   icon: any;
 }
 
-export default function GlassSlipperApp() {
-  // Authentication state
+// ============================================
+// API CONFIGURATION  
+// ============================================
+//
+// API calls now go through Next.js API routes (no CORS issues!)
+// Serper and Claude API keys are stored server-side in .env.local
+//
+
+const GlassSlipperApp = () => {
+  // User session state
+  const [currentUser, setCurrentUser] = useState<User>({
+    name: 'John Smith',
+    email: 'john@example.com', 
+    company: 'Growth Dynamics Ltd',
+    businessType: 'Consulting',
+    targetMarket: 'B2B SaaS',
+    writingStyle: 'Professional yet conversational',
+    referralPartners: 'Accountants, Business Coaches'
+  });
+
+  // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authView, setAuthView] = useState<string>('landing');
+  const [authView, setAuthView] = useState<'landing' | 'login' | 'register'>('landing');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [authForm, setAuthForm] = useState<AuthForm>({
     email: '',
     password: '',
@@ -95,37 +116,42 @@ export default function GlassSlipperApp() {
     name: '',
     company: ''
   });
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
-  // User and contact state
-  const [user, setUser] = useState<User>({
-    name: 'Sarah Thompson',
-    email: 'sarah@example.com',
-    company: 'Thompson Marketing',
-    businessType: 'Marketing Agency',
-    targetMarket: 'Small Business Owners',
-    writingStyle: 'Professional and approachable',
-    referralPartners: 'Accountants, Business Coaches, Web Developers'
-  });
-
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  
   // UI state
   const [currentView, setCurrentView] = useState<string>('dashboard');
-  const [showContactModal, setShowContactModal] = useState<boolean>(false);
-  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState<boolean>(false);
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [showLoadingModal, setShowLoadingModal] = useState<boolean>(false);
-  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [showMobileMenu, setShowMobileMenu] = useState<boolean>(false);
+  const [showContactModal, setShowContactModal] = useState<boolean>(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState<LeadMagnet | null>(null);
+  const [showLoadingModal, setShowLoadingModal] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState<boolean>(false);
+  const [selectedLeadMagnet, setSelectedLeadMagnet] = useState<LeadMagnet | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Content state
-  const [leadMagnets, setLeadMagnets] = useState<LeadMagnet[]>([]);
+  // Business state
+  const [user, setUser] = useState<User>(currentUser);
+  const [contacts, setContacts] = useState<Contact[]>([]); // Start with empty contacts
+  const [categories] = useState(['Ideal Client', 'Champions', 'Referral Partners', 'Competitors', 'Other']);
+
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
+
+  // Filtered contacts
+  const filteredContacts = contacts.filter((contact: Contact) => {
+    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (contact.lastName && contact.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (contact.industry && contact.industry.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = categoryFilter === 'All' || contact.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Strategy state
   const [strategy, setStrategy] = useState<Strategy>({
     oneOffer: '',
     idealReferralPartners: '',
@@ -133,12 +159,8 @@ export default function GlassSlipperApp() {
     generatedStrategy: ''
   });
 
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Search and filter
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedFilter, setSelectedFilter] = useState<string>('All');
+  // Lead magnets state
+  const [leadMagnets, setLeadMagnets] = useState<LeadMagnet[]>([]);
 
   // Enrichments counter
   const [enrichmentsLeft, setEnrichmentsLeft] = useState<number>(50);
@@ -167,97 +189,90 @@ export default function GlassSlipperApp() {
   // Track which ideal client is currently being shown in dashboard
   const [currentIdealClientIndex, setCurrentIdealClientIndex] = useState<number>(0);
 
-  // UPDATED: File upload handler with lastName extraction
+  // UPDATED: File upload handler - Enhanced lastName extraction
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert('Please upload a CSV file');
-      return;
-    }
-
-    setLoadingMessage('Processing CSV file...');
-    setShowLoadingModal(true);
-
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const csv = e.target?.result as string;
-        const lines = csv.split('\n').filter(line => line.trim() !== '');
+        const text = e.target?.result as string;
+        const lines = text.split('\n');
         
         if (lines.length < 2) {
-          throw new Error('CSV file appears to be empty or invalid');
+          alert('CSV file appears to be empty or invalid');
+          return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        console.log('CSV Headers:', headers);
+        setLoadingMessage('Processing your LinkedIn connections...');
+        setShowLoadingModal(true);
 
-        // Find column indices
-        const nameIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('name') && 
-          (h.toLowerCase().includes('first') || h.toLowerCase() === 'name')
-        );
-        const companyIndex = headers.findIndex(h => h.toLowerCase().includes('company'));
-        const positionIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('position') || h.toLowerCase().includes('title')
-        );
-        const emailIndex = headers.findIndex(h => h.toLowerCase().includes('email'));
-
-        if (nameIndex === -1 || companyIndex === -1 || emailIndex === -1) {
-          throw new Error('CSV must contain Name, Company, and Email columns');
-        }
-
+        // Parse CSV headers and data
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
         const newContacts: Contact[] = [];
-        let contactId = Math.max(...contacts.map(c => c.id), 0) + 1;
 
-        // Process data rows
         for (let i = 1; i < lines.length; i++) {
-          const row = lines[i].split(',').map(cell => cell.trim().replace(/"/g, ''));
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
           
-          if (row.length < headers.length) continue;
+          if (values.length >= 3) {
+            // Enhanced: Extract firstName and lastName separately if available
+            const firstNameIndex = headers.indexOf('first name');
+            const lastNameIndex = headers.indexOf('last name');
+            const fullNameIndex = headers.indexOf('name') !== -1 ? headers.indexOf('name') : 0;
+            
+            let fullName = '';
+            let lastName = '';
+            
+            if (firstNameIndex !== -1 && lastNameIndex !== -1) {
+              // If we have separate first and last name columns
+              const firstName = values[firstNameIndex] || '';
+              lastName = values[lastNameIndex] || '';
+              fullName = `${firstName} ${lastName}`.trim();
+            } else if (fullNameIndex !== -1 && values[fullNameIndex]) {
+              // If we have a full name column, try to extract lastName
+              fullName = values[fullNameIndex];
+              const nameParts = fullName.split(' ');
+              if (nameParts.length > 1) {
+                lastName = nameParts[nameParts.length - 1];
+              }
+            } else {
+              fullName = values[0] || 'Unknown';
+            }
 
-          const name = row[nameIndex]?.trim();
-          const company = row[companyIndex]?.trim();
-          const position = row[positionIndex]?.trim() || 'Not specified';
-          const email = row[emailIndex]?.trim();
+            const contact: Contact = {
+              id: Date.now() + i,
+              name: fullName,
+              lastName: lastName || undefined, // Only set if we found a lastName
+              company: values[headers.indexOf('company')] || values[1] || 'Unknown Company',
+              position: values[headers.indexOf('position')] || values[2] || 'Unknown Position',
+              email: values[headers.indexOf('email address')] || values[3] || 'No email',
+              category: undefined,
+              isEnriched: false
+            };
 
-          // Skip invalid rows
-          if (!name || !company || !email) continue;
-
-          // Extract lastName from full name
-          const nameParts = name.split(' ').filter(part => part.length > 0);
-          const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-
-          newContacts.push({
-            id: contactId++,
-            name,
-            lastName, // ADD THIS LINE
-            company,
-            position,
-            email,
-            category: 'Uncategorised',
-            isEnriched: false
-          });
+            newContacts.push(contact);
+          }
         }
 
-        setContacts(prevContacts => [...prevContacts, ...newContacts]);
+        if (newContacts.length === 0) {
+          setShowLoadingModal(false);
+          alert('No valid contacts found in the CSV file');
+          return;
+        }
+
+        setContacts(newContacts);
         setShowLoadingModal(false);
-        setSuccessMessage(`Successfully imported ${newContacts.length} contacts!`);
+        setSuccessMessage(`Successfully imported ${newContacts.length} contacts from LinkedIn!`);
         setShowSuccessModal(true);
 
-        // Mark task as complete
-        setTasks(prev => prev.map(task => 
+        // Mark upload task as complete
+        setTasks(prev => prev.map(task =>
           task.id === 1 ? { ...task, completed: true } : task
         ));
-
-        // Simulate processing time for better UX
-        setTimeout(() => {
-          setTasks(prevTasks => prevTasks.map(task => 
-            task.text === "Upload your LinkedIn connections" ? 
-            { ...task, completed: true } : task
-          ));
-        }, 2000);
 
       } catch (error) {
         setShowLoadingModal(false);
@@ -324,287 +339,563 @@ export default function GlassSlipperApp() {
     }
 
     console.log('🔄 Updating contacts state...');
-    // Update contacts with enriched data
+    // Enhanced: Update contacts with enriched data including lastName and industry
     const updatedContacts = contacts.map(contact => {
-    const enrichedContact = data.contacts.find((c: Contact) => c.id === contact.id);
-      return enrichedContact || contact;
+      const enrichedContact = data.contacts.find((c: Contact) => c.id === contact.id);
+      if (enrichedContact) {
+        // Debug: Log enrichment data for each contact
+        console.log(`📋 Enriching ${contact.name}:`, {
+          originalLastName: contact.lastName,
+          enrichedLastName: enrichedContact.lastName,
+          originalIndustry: contact.industry,
+          enrichedIndustry: enrichedContact.industry,
+          phone: enrichedContact.phone,
+          website: enrichedContact.website
+        });
+        
+        // Ensure all enriched fields are properly mapped
+        return {
+          ...contact,
+          ...enrichedContact,
+          isEnriched: true,
+          phone: enrichedContact.phone || 'Not found',
+          website: enrichedContact.website || 'Not found',
+          lastName: enrichedContact.lastName || null,
+          industry: enrichedContact.industry || 'Not found'
+        };
+      }
+      return contact;
     });
 
-    console.log('🔄 Updated contacts:', updatedContacts);
+    console.log('🔄 Updated contacts with enrichment data:', updatedContacts);
     setContacts(updatedContacts);
     console.log('✅ State updated successfully');
     
+    // Mark enrichment task as complete
+    setTasks(prev => prev.map(task =>
+      task.id === 3 ? { ...task, completed: true } : task
+    ));
+    
     setEnrichmentsLeft(prev => prev - contactsToEnrich.length);
     setShowLoadingModal(false);
-    setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data!`);
+    setSuccessMessage(`Successfully enriched ${contactsToEnrich.length} contacts with real data including phone numbers, websites, and industry information!`);
     setShowSuccessModal(true);
 
 } catch (error) {
   console.error('💥 Error occurred:', error);
   setShowLoadingModal(false);
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  alert(`Error enriching contacts: ${errorMessage}`);
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+  alert(`Enrichment failed: ${errorMessage}. Claude API may be experiencing issues or your API keys may need configuration.`);
 }
-  };
+};
 
-  // AI categorize all contacts
-  const aiCategorizeAll = async () => {
-    const uncategorizedContacts = contacts.filter(c => !c.category || c.category === 'Uncategorised');
-
-    if (uncategorizedContacts.length === 0) {
-      alert('All contacts are already categorised!');
+  // Categorise contacts function - Enhanced with industry data
+  const categoriseContacts = async () => {
+    const uncategorisedContacts = contacts.filter(c => !c.category);
+    
+    if (uncategorisedContacts.length === 0) {
+      alert('All contacts are already categorised');
       return;
     }
 
-    setLoadingMessage(`Categorising ${uncategorizedContacts.length} contacts using AI...`);
+    setLoadingMessage(`Categorising ${uncategorisedContacts.length} contacts using enhanced UK business intelligence...`);
     setShowLoadingModal(true);
 
     try {
-      // Simulate AI categorization
-      setTimeout(() => {
-        const categories = ['Ideal Client', 'Referral Partners', 'Competitors', 'Other'];
+      // Enhanced UK categorisation with comprehensive decision maker recognition and industry data
+      const updatedContacts = contacts.map(contact => {
+        if (contact.category) return contact;
+
+        let category = 'Other';
+        const position = contact.position?.toLowerCase() || '';
+        const company = contact.company?.toLowerCase() || '';
+        const industry = contact.industry?.toLowerCase() || '';
+
+        // ENHANCED: Comprehensive UK decision maker identification
+        if (
+          // C-Suite & Chiefs
+          position.includes('ceo') || position.includes('chief') ||
+          position.includes('cfo') || position.includes('cto') || position.includes('coo') ||
+          position.includes('cmo') || position.includes('cro') || position.includes('cso') ||
+          
+          // Managing Directors (very common in UK)
+          position.includes('managing director') || position.includes('md') ||
+          
+          // Directors (including UK SME directors)
+          position.includes('director') ||
+          
+          // Presidents & VPs
+          position.includes('president') || position.includes('vp') || 
+          position.includes('v.p.') || position.includes('vice president') ||
+          
+          // Partners & Principals  
+          position.includes('partner') || position.includes('principal') ||
+          
+          // Ownership titles
+          position.includes('owner') || position.includes('proprietor') ||
+          
+          // Head of roles (common in UK)
+          position.includes('head of') || position.includes('department head') ||
+          
+          // Board & Chair positions
+          position.includes('chairman') || position.includes('chairwoman') || 
+          position.includes('chair') || position.includes('board') ||
+          
+          // Executive roles
+          position.includes('executive') ||
+          
+          // Founders
+          position.includes('founder')
+        ) {
+          category = 'Ideal Client';
+        }
         
-        const updatedContacts = contacts.map(contact => {
-          if (!contact.category || contact.category === 'Uncategorised') {
-            // Simple rule-based categorization
-            let category = 'Other';
-            
-            if (contact.position.toLowerCase().includes('ceo') ||
-                contact.position.toLowerCase().includes('director') ||
-                contact.position.toLowerCase().includes('founder') ||
-                contact.position.toLowerCase().includes('owner')) {
-              category = 'Ideal Client';
-            } else if (contact.position.toLowerCase().includes('consultant') ||
-                       contact.position.toLowerCase().includes('coach') ||
-                       contact.position.toLowerCase().includes('advisor')) {
-              category = 'Referral Partners';
-            } else if (contact.company.toLowerCase().includes(user.businessType.toLowerCase()) ||
-                       contact.position.toLowerCase().includes(user.businessType.toLowerCase())) {
-              category = 'Competitors';
-            }
+        // CHAMPIONS: Decision influencers (COMPREHENSIVE UK SENIOR TITLES)
+        else if (
+          // Senior Management (Non-Director)
+          position.includes('senior manager') || position.includes('senior executive') || position.includes('senior leader') ||
+          position.includes('deputy manager') || position.includes('assistant manager') || position.includes('associate manager') ||
+          position.includes('regional manager') || position.includes('area manager') || position.includes('branch manager') ||
+          position.includes('district manager') || position.includes('territory manager') || position.includes('zone manager') ||
+          
+          // Department Management (excluding directors already caught above)
+          (position.includes('manager') && !position.includes('managing director') && !position.includes('general manager')) ||
+          position.includes('finance manager') || position.includes('financial manager') || position.includes('accounting manager') ||
+          position.includes('operations manager') || position.includes('operational manager') || position.includes('production manager') ||
+          position.includes('sales manager') || position.includes('business development manager') || position.includes('account manager') ||
+          position.includes('marketing manager') || position.includes('digital marketing manager') || position.includes('brand manager') ||
+          position.includes('hr manager') || position.includes('human resources manager') || position.includes('people manager') ||
+          position.includes('it manager') || position.includes('technology manager') || position.includes('systems manager') ||
+          position.includes('project manager') || position.includes('programme manager') || position.includes('portfolio manager') ||
+          position.includes('quality manager') || position.includes('compliance manager') || position.includes('risk manager') ||
+          position.includes('procurement manager') || position.includes('purchasing manager') || position.includes('supply chain manager') ||
+          position.includes('customer service manager') || position.includes('client services manager') ||
+          position.includes('facilities manager') || position.includes('property manager') || position.includes('office manager') ||
+          
+          // Team Leadership
+          position.includes('team leader') || position.includes('team lead') || position.includes('team manager') || position.includes('team supervisor') ||
+          position.includes('squad leader') || position.includes('squad lead') || position.includes('group leader') || position.includes('section leader') ||
+          position.includes('unit leader') || position.includes('department lead') || position.includes('practice lead') ||
+          
+          // Supervisory Roles
+          position.includes('supervisor') || position.includes('senior supervisor') || position.includes('shift supervisor') ||
+          position.includes('floor supervisor') || position.includes('production supervisor') || position.includes('operations supervisor') ||
+          position.includes('site supervisor') || position.includes('field supervisor') ||
+          
+          // Technical Leadership
+          position.includes('technical lead') || position.includes('tech lead') || position.includes('lead developer') || position.includes('lead engineer') ||
+          position.includes('senior developer') || position.includes('senior engineer') || position.includes('senior programmer') ||
+          position.includes('principal developer') || position.includes('principal engineer') || position.includes('staff engineer') ||
+          position.includes('senior software engineer') || position.includes('senior systems engineer') ||
+          
+          // Architecture & Design
+          position.includes('architect') || position.includes('solution architect') || position.includes('system architect') || position.includes('software architect') ||
+          position.includes('technical architect') || position.includes('enterprise architect') || position.includes('cloud architect') ||
+          position.includes('data architect') || position.includes('security architect') || position.includes('infrastructure architect') ||
+          
+          // Specialist Technical Roles
+          position.includes('senior analyst') || position.includes('systems analyst') || position.includes('business analyst') ||
+          position.includes('data analyst') || position.includes('senior data analyst') || position.includes('research analyst') ||
+          position.includes('cybersecurity analyst') || position.includes('security analyst') || position.includes('network analyst') ||
+          position.includes('devops engineer') || position.includes('senior devops engineer') || position.includes('platform engineer') ||
+          position.includes('database administrator') || position.includes('senior dba') || position.includes('network administrator') ||
+          position.includes('system administrator') || position.includes('senior sysadmin') ||
+          
+          // Senior Finance Roles
+          position.includes('senior accountant') || position.includes('management accountant') || position.includes('financial accountant') ||
+          position.includes('senior financial analyst') || position.includes('financial analyst') || position.includes('budget analyst') ||
+          position.includes('investment analyst') || position.includes('credit analyst') || position.includes('treasury analyst') ||
+          position.includes('controller') || position.includes('assistant controller') || position.includes('finance controller') ||
+          position.includes('cost accountant') || position.includes('senior bookkeeper') ||
+          
+          // Specialist Finance
+          position.includes('treasury manager') || position.includes('credit manager') || position.includes('collections manager') ||
+          position.includes('financial planning manager') || position.includes('budgeting manager') || position.includes('audit manager') ||
+          position.includes('tax manager') || position.includes('payroll manager') || position.includes('accounts payable manager') ||
+          position.includes('accounts receivable manager') ||
+          
+          // Senior Sales Roles
+          position.includes('senior sales executive') || position.includes('sales executive') || position.includes('account executive') ||
+          position.includes('key account manager') || position.includes('national account manager') || position.includes('regional sales manager') ||
+          position.includes('territory sales manager') || position.includes('inside sales manager') || position.includes('channel manager') ||
+          position.includes('partnership manager') || position.includes('alliance manager') || position.includes('relationship manager') ||
+          
+          // Marketing Specialists
+          position.includes('senior marketing executive') || position.includes('marketing executive') || position.includes('marketing specialist') ||
+          position.includes('digital marketing specialist') || position.includes('content marketing manager') || position.includes('seo manager') ||
+          position.includes('social media manager') || position.includes('campaign manager') || position.includes('product marketing manager') ||
+          position.includes('market research manager') || position.includes('communications manager') ||
+          
+          // Project & Programme Management
+          position.includes('senior project manager') || position.includes('principal project manager') ||
+          position.includes('senior programme manager') || position.includes('delivery manager') || position.includes('implementation manager') || position.includes('change manager') ||
+          
+          // Agile & Scrum
+          position.includes('scrum master') || position.includes('senior scrum master') || position.includes('agile coach') ||
+          position.includes('product owner') || position.includes('senior product owner') || position.includes('product manager') ||
+          position.includes('release manager') || position.includes('iteration manager') ||
+          
+          // Analysis & Consulting
+          position.includes('principal business analyst') || position.includes('principal consultant') ||
+          position.includes('senior consultant') || position.includes('technical consultant') || position.includes('business consultant') ||
+          position.includes('advisor') || position.includes('senior advisor') || position.includes('specialist') || position.includes('senior specialist') ||
+          position.includes('subject matter expert') || position.includes('competitive analyst') || position.includes('strategy analyst') || position.includes('planning analyst') ||
+          
+          // Healthcare Management
+          position.includes('practice manager') || position.includes('clinic manager') || position.includes('service manager') ||
+          position.includes('patient services manager') || position.includes('nursing manager') || position.includes('senior nurse') || position.includes('charge nurse') ||
+          position.includes('theatre manager') || position.includes('ward manager') || position.includes('senior clinician') || position.includes('clinical specialist') ||
+          
+          // Education & Academic
+          position.includes('subject leader') || position.includes('year head') || position.includes('senior teacher') || position.includes('lead teacher') ||
+          position.includes('curriculum manager') || position.includes('assessment manager') || position.includes('senior lecturer') ||
+          position.includes('programme leader') || position.includes('course leader') || position.includes('student services manager') ||
+          position.includes('admissions manager') || position.includes('academic registrar') || position.includes('examinations manager') || position.includes('library manager') ||
+          
+          // Public Sector
+          position.includes('senior civil servant') || position.includes('policy manager') || position.includes('senior policy advisor') ||
+          position.includes('senior administrator') || position.includes('principal officer') || position.includes('senior officer') || position.includes('executive officer') ||
+          position.includes('senior social worker') || position.includes('senior planner') || position.includes('senior environmental health officer') ||
+          
+          // Legal & Compliance
+          position.includes('senior solicitor') || position.includes('associate solicitor') || position.includes('legal counsel') ||
+          position.includes('senior legal advisor') || position.includes('senior compliance officer') ||
+          position.includes('senior risk officer') || position.includes('governance manager') || position.includes('contracts manager') || position.includes('senior paralegal') ||
+          
+          // Retail & Customer Service
+          position.includes('store manager') || position.includes('assistant store manager') || position.includes('department manager') ||
+          position.includes('area supervisor') || position.includes('shift manager') || position.includes('duty manager') ||
+          position.includes('merchandising manager') || position.includes('visual merchandising manager') ||
+          
+          // Creative & Media
+          position.includes('creative manager') || position.includes('senior creative') || position.includes('art director') ||
+          position.includes('senior designer') || position.includes('lead designer') || position.includes('design manager') ||
+          position.includes('content manager') || position.includes('senior copywriter') || position.includes('editorial manager') ||
+          position.includes('production manager') || position.includes('senior producer') ||
+          
+          // Coordinator & Administrative
+          position.includes('coordinator') || position.includes('senior coordinator') || position.includes('administrator') ||
+          
+          // Officer roles (not Chief Officers)
+          (position.includes('officer') && !position.includes('chief'))
+        ) {
+          category = 'Champions';
+        } 
+        else if (position.includes('consultant') || position.includes('coach') || company.includes('consulting') || industry.includes('consulting')) {
+          category = 'Referral Partners';
+        } else if (company.includes(user.businessType.toLowerCase()) || position.includes(user.businessType.toLowerCase()) || industry.includes(user.businessType.toLowerCase())) {
+          category = 'Competitors';
+        } else if (industry && (industry.includes('accounting') || industry.includes('finance') || industry.includes('coaching') || industry.includes('training'))) {
+          // Use industry data to identify potential referral partners
+          category = 'Referral Partners';
+        }
 
-            return { ...contact, category };
-          }
-          return contact;
-        });
+        return { ...contact, category };
+      });
 
-        setContacts(updatedContacts);
-        setShowLoadingModal(false);
-        setSuccessMessage(`Successfully categorised ${uncategorizedContacts.length} contacts!`);
-        setShowSuccessModal(true);
+      setContacts(updatedContacts);
+      setShowLoadingModal(false);
+      setSuccessMessage(`Successfully categorised ${uncategorisedContacts.length} contacts using enhanced UK business intelligence!`);
+      setShowSuccessModal(true);
 
-        // Mark task as complete
-        setTasks(prev => prev.map(task => 
-          task.id === 4 ? { ...task, completed: true } : task
-        ));
-      }, 3000);
+      // Mark categorisation task as complete
+      setTasks(prev => prev.map(task =>
+        task.id === 4 ? { ...task, completed: true } : task
+      ));
 
     } catch (error) {
-      console.error('Categorization failed:', error);
       setShowLoadingModal(false);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Categorization failed: ${errorMessage}. Please try again.`);
+      console.error('Categorisation failed:', error);
+      alert('Categorisation failed. Using fallback categorisation.');
     }
   };
 
-  // Generate strategy
-  const generateStrategy = () => {
-    if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
-      alert('Please fill in all strategy fields first.');
-      return;
-    }
+  // Calculate stats
+  const totalContacts = contacts.length;
+  const idealClients = contacts.filter(c => c.category === 'Ideal Client').length;
+  const champions = contacts.filter(c => c.category === 'Champions').length;
+  const enrichedContacts = contacts.filter(c => c.isEnriched).length;
+  const referralPartners = contacts.filter(c => c.category === 'Referral Partners').length;
 
+  // Get ideal clients list for dashboard focus
+  const idealClientsList = contacts.filter(c => c.category === 'Ideal Client');
+  const currentIdealClient = idealClientsList[currentIdealClientIndex];
+
+  // Generate LinkedIn strategy
+  const generateStrategy = async () => {
     setLoadingMessage('Generating your personalised LinkedIn strategy...');
     setShowLoadingModal(true);
 
+    // Simulate strategy generation with realistic content
     setTimeout(() => {
-      const generatedStrategy = `
-# Your Personalised LinkedIn ABM Strategy
+      const generatedStrategy = `# LinkedIn ABM Strategy for ${user.company}
 
 ## Executive Summary
-Based on your business profile as a ${user.businessType} targeting ${user.targetMarket}, here's your comprehensive LinkedIn ABM strategy.
+Based on your business profile and contact analysis, here's your personalised LinkedIn Account-Based Marketing strategy.
 
-## Your Unique Value Proposition
-"${strategy.oneOffer}"
+## Your Business Context
+- **Industry**: ${user.businessType}
+- **Target Market**: ${user.targetMarket}
+- **Contact Base**: ${totalContacts} LinkedIn connections
+- **Ideal Clients Identified**: ${idealClients} prospects
 
-## Target Audience Strategy
+## Strategic Approach
 
-### Ideal Client Profile
-- **Primary Target**: ${user.targetMarket}
-- **Key Decision Makers**: CEOs, Directors, and Senior Managers in your target market
-- **Pain Points**: Business growth challenges, operational inefficiencies, competitive pressures
+### 1. Content Strategy
+**Posting Schedule**: 3-4 posts per week focused on ${user.targetMarket} challenges
+**Content Themes**:
+- Industry insights and trends
+- Case studies from your ${user.businessType} work
+- Practical tips for ${user.targetMarket} leaders
+- Behind-the-scenes business content
 
-### Engagement Approach
-1. **Content Strategy**: Share insights relevant to ${user.targetMarket}
-2. **Personal Branding**: Position yourself as the go-to expert for ${strategy.oneOffer}
-3. **Relationship Building**: Focus on providing value before selling
+### 2. Engagement Strategy
+**Daily Activities**:
+- Comment meaningfully on 5 ideal client posts
+- Share relevant industry content with your insights
+- Send 3-5 personalised connection requests to target prospects
 
-## Referral Partner Strategy
+### 3. Lead Generation Approach
+**Ideal Client Focus**: Target ${user.targetMarket} decision-makers
+**Value-First Outreach**: Share insights before pitching services
+**Multi-Touch Campaign**: 
+1. Engaging content comment
+2. Connection request with personalised note
+3. Value-add message post-connection
+4. Direct meeting invitation
 
-### Target Partners
-${strategy.idealReferralPartners}
+### 4. Referral Partner Strategy
+**Target Partners**: ${user.referralPartners}
+**Collaboration Approach**: Cross-referral partnerships and content collaboration
+**Value Exchange**: Mutual introductions and joint content creation
 
-### Partnership Approach
-- Identify complementary service providers
-- Create mutual referral opportunities
-- Develop co-marketing initiatives
-- Share resources and insights
+## Key Performance Indicators
+- **Weekly connection requests**: 15-25 qualified prospects
+- **Monthly meetings booked**: 8-12 discovery calls
+- **Content engagement**: 50+ reactions per post
+- **Pipeline growth**: 20% monthly increase in qualified opportunities
 
-## Competitive Differentiation
+## Next Steps
+1. Begin implementing daily engagement routine
+2. Create content calendar for next 4 weeks
+3. Identify top 20 ideal clients for immediate outreach
+4. Set up tracking system for measuring progress
 
-### Your Special Factors
-${strategy.specialFactors}
+## Tools & Resources
+- Use Glass Slipper for contact management and lead magnet creation
+- LinkedIn Sales Navigator for advanced prospecting
+- Calendar booking system for streamlined meeting scheduling
 
-### Market Positioning
-- Leverage your unique strengths in all communications
-- Highlight case studies and success stories
-- Demonstrate expertise through valuable content
-- Build thought leadership in your niche
+---
 
-## Implementation Roadmap
-
-### Phase 1: Foundation (Weeks 1-2)
-- Optimise LinkedIn profile with clear value proposition
-- Create content calendar based on target audience needs
-- Begin connecting with ideal clients and referral partners
-
-### Phase 2: Engagement (Weeks 3-6)
-- Publish valuable content weekly
-- Engage meaningfully with prospects' posts
-- Send personalised connection requests
-- Start conversations with warm prospects
-
-### Phase 3: Conversion (Weeks 7-12)
-- Nurture relationships through consistent value delivery
-- Introduce services naturally in conversations
-- Leverage referral partner network
-- Track and optimise performance
-
-## Success Metrics
-- Connection acceptance rate: Target 60%+
-- Engagement rate on content: Target 5%+
-- Meetings booked per month: Target 8-12
-- Referral partner relationships: Target 10-15
-
-## Monthly Action Plan
-
-### Week 1:
-- Connect with 25 ideal clients
-- Publish 2 value-driven posts
-- Engage with 50 prospect posts
-
-### Week 2:
-- Follow up with new connections
-- Share 1 case study or success story
-- Reach out to 5 potential referral partners
-
-### Week 3:
-- Send personalised messages to warm connections
-- Publish industry insights content
-- Comment thoughtfully on 30 posts
-
-### Week 4:
-- Review and optimise strategy based on results
-- Plan next month's content calendar
-- Strengthen existing referral relationships
-
-This strategy is specifically designed for ${user.company} and leverages your strengths in ${user.businessType} to attract ${user.targetMarket}.
+*Strategy generated on ${new Date().toLocaleDateString()}*
+*Next review: ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}*
 `;
 
-      setStrategy(prev => ({
-        ...prev,
-        generatedStrategy
-      }));
-
+      setStrategy(prev => ({ ...prev, generatedStrategy }));
       setShowLoadingModal(false);
       setSuccessMessage('Your LinkedIn strategy has been generated!');
       setShowSuccessModal(true);
 
-      // Mark task as complete
-      setTasks(prev => prev.map(task => 
+      // Mark strategy task as complete
+      setTasks(prev => prev.map(task =>
         task.id === 5 ? { ...task, completed: true } : task
       ));
+
     }, 3000);
   };
 
   // Generate lead magnet
-  const generateLeadMagnet = () => {
-    if (!strategy.generatedStrategy) {
-      alert('Please generate your LinkedIn strategy first.');
-      return;
-    }
-
-    setLoadingMessage('Creating your lead magnet...');
+  const generateLeadMagnet = async () => {
+    setLoadingMessage('Creating your personalised lead magnet...');
     setShowLoadingModal(true);
 
+    // Simulate lead magnet generation
     setTimeout(() => {
-      const titles = [
-        `The Ultimate ${user.targetMarket} Growth Guide`,
-        `7 Proven Strategies for ${user.targetMarket} Success`,
-        `How to Scale Your ${user.businessType} Business in 2024`,
-        `The Complete ${user.targetMarket} Playbook`,
-        `Insider Secrets: ${user.targetMarket} Best Practices`
-      ];
-
       const newLeadMagnet: LeadMagnet = {
         id: Date.now(),
-        title: titles[Math.floor(Math.random() * titles.length)],
-        description: `A comprehensive guide tailored for ${user.targetMarket} professionals, featuring proven strategies, case studies, and actionable insights from industry leaders.`,
+        title: `${user.targetMarket} Success Guide`,
+        description: `A comprehensive guide to help ${user.targetMarket} leaders overcome common challenges and achieve sustainable growth.`,
         type: 'PDF Guide',
         created: new Date().toISOString().split('T')[0],
         downloads: 0,
-        content: `
-# ${titles[Math.floor(Math.random() * titles.length)]}
+        content: `# The Ultimate ${user.targetMarket} Success Guide
 
 ## Table of Contents
-1. Introduction to ${user.targetMarket}
-2. Current Market Challenges
-3. Proven Growth Strategies
-4. Case Studies and Success Stories
-5. Implementation Roadmap
-6. Tools and Resources
-7. Next Steps
-
-## Chapter 1: Introduction
-Welcome to your comprehensive guide for ${user.targetMarket} success. This guide has been specifically created for professionals like you who are looking to accelerate their growth and overcome common industry challenges.
-
-## Chapter 2: Market Analysis
-The ${user.targetMarket} landscape is evolving rapidly. Here are the key trends and challenges:
-- Digital transformation acceleration
-- Increased competition for talent
-- Rising customer expectations
-- Need for operational efficiency
-
-## Chapter 3: Growth Strategies
-Based on analysis of successful ${user.targetMarket} companies, here are the top strategies:
-
-### Strategy 1: Customer-Centric Approach
-Focus on delivering exceptional customer value through:
-- Personalised service delivery
-- Proactive communication
-- Continuous improvement based on feedback
-
-### Strategy 2: Digital Optimisation
-Leverage technology to:
-- Streamline operations
-- Improve customer experience
-- Enhance data-driven decision making
-
-### Strategy 3: Strategic Partnerships
-Build relationships with complementary businesses to:
-- Expand market reach
-- Share resources and expertise
-- Create win-win opportunities
-
-## Implementation Roadmap
-**Phase 1 (Months 1-2):** Assessment and Planning
-**Phase 2 (Months 3-4):** Implementation and Testing
-**Phase 3 (Months 5-6):** Optimisation and Scaling
-
-## Conclusion
-Success in ${user.targetMarket} requires a systematic approach, continuous learning, and strategic execution. Use this guide as your roadmap to sustainable growth.
+1. Industry Overview & Current Challenges
+2. Key Success Factors for ${user.targetMarket} Leaders
+3. Common Pitfalls to Avoid
+4. Step-by-Step Implementation Framework
+5. Measurement & KPIs
+6. Resources & Next Steps
 
 ---
+
+## Chapter 1: Industry Overview & Current Challenges
+
+The ${user.targetMarket} industry is experiencing unprecedented change. Leaders face mounting pressure to deliver results while navigating complex market dynamics.
+
+### Key Challenges Facing ${user.targetMarket} Leaders:
+- Digital transformation requirements
+- Increasing competition and market saturation
+- Talent acquisition and retention difficulties
+- Economic uncertainty and budget constraints
+- Regulatory compliance complexities
+
+### Market Trends to Watch:
+- Technology integration becoming essential
+- Customer expectations rising rapidly
+- Data-driven decision making now mandatory
+- Sustainability and ESG concerns growing
+- Remote work permanently changing operations
+
+## Chapter 2: Key Success Factors
+
+Based on our experience working with successful ${user.targetMarket} companies, here are the critical success factors:
+
+### 1. Strategic Vision & Planning
+- Clear 3-5 year roadmap
+- Quarterly milestone tracking
+- Agile strategy adaptation capabilities
+- Stakeholder alignment processes
+
+### 2. Operational Excellence
+- Process optimization and automation
+- Quality management systems
+- Performance measurement frameworks
+- Continuous improvement culture
+
+### 3. Technology & Innovation
+- Digital infrastructure investment
+- Data analytics capabilities
+- Innovation pipeline management
+- Technology adoption strategies
+
+### 4. People & Culture
+- Leadership development programs
+- Employee engagement initiatives
+- Skills development and training
+- Cultural transformation management
+
+## Chapter 3: Common Pitfalls to Avoid
+
+### Pitfall #1: Rushing Digital Transformation
+Many ${user.targetMarket} companies attempt to digitise everything at once, leading to:
+- Employee resistance and confusion
+- System integration failures
+- Budget overruns and delays
+- Poor user adoption rates
+
+**Solution**: Implement phased transformation with clear milestones and extensive change management.
+
+### Pitfall #2: Ignoring Company Culture
+Focusing solely on processes and technology while neglecting cultural change:
+- Creates resistance to new initiatives
+- Reduces employee engagement
+- Limits innovation and creativity
+- Impacts customer satisfaction
+
+**Solution**: Invest equally in people development and cultural transformation alongside operational changes.
+
+### Pitfall #3: Lack of Data Strategy
+Making decisions without proper data analysis:
+- Leads to ineffective resource allocation
+- Creates missed opportunities
+- Increases risk of strategic errors
+- Reduces competitive advantage
+
+**Solution**: Develop comprehensive data collection, analysis, and decision-making frameworks.
+
+## Chapter 4: Step-by-Step Implementation Framework
+
+### Phase 1: Assessment & Planning (Weeks 1-4)
+- Current state analysis
+- Gap identification
+- Stakeholder mapping
+- Resource requirement planning
+- Timeline development
+
+### Phase 2: Foundation Building (Weeks 5-12)
+- Team structure establishment
+- Process documentation
+- Technology infrastructure setup
+- Training program development
+- Communication plan execution
+
+### Phase 3: Implementation (Weeks 13-26)
+- Pilot program launch
+- Feedback collection and analysis
+- System refinements
+- Full rollout preparation
+- Change management activities
+
+### Phase 4: Optimization & Scale (Weeks 27-52)
+- Performance monitoring
+- Continuous improvement
+- Best practice documentation
+- Success story development
+- Future planning
+
+## Chapter 5: Measurement & KPIs
+
+### Financial Metrics
+- Revenue growth percentage
+- Profit margin improvement
+- Cost reduction achievements
+- ROI on transformation investments
+
+### Operational Metrics
+- Process efficiency gains
+- Quality improvement scores
+- Customer satisfaction ratings
+- Employee engagement levels
+
+### Strategic Metrics
+- Market share changes
+- Innovation pipeline strength
+- Competitive positioning
+- Brand recognition metrics
+
+## Chapter 6: Resources & Next Steps
+
+### Recommended Reading
+- Industry-specific research reports
+- Best practice case studies
+- Technology trend analyses
+- Leadership development resources
+
+### Professional Development Opportunities
+- Industry conferences and events
+- Online learning platforms
+- Professional certifications
+- Networking groups and associations
+
+### Implementation Support
+For organisations ready to begin their transformation journey, consider:
+- Strategic planning workshops
+- Implementation consulting services
+- Technology selection assistance
+- Change management support
+
+### About ${user.company}
+${user.company} specialises in helping ${user.targetMarket} leaders navigate complex challenges and achieve sustainable growth. Our ${user.businessType} approach combines industry expertise with proven methodologies to deliver measurable results.
+
+**Ready to discuss your specific challenges and opportunities?**
+Contact us to schedule a confidential consultation where we can explore how these frameworks apply to your unique situation.
+
+---
+
+*This guide represents current best practices as of ${new Date().toLocaleDateString()}. Market conditions and recommendations may evolve.*
+
+### Contact Information
+**${user.company}**
+Email: ${user.email}
+LinkedIn: Connect with ${user.name}
+
+Use this guide as your roadmap to sustainable growth.
+
+---
+
 *This guide was created specifically for ${user.company} and reflects current industry best practices.*
 
 `
@@ -693,75 +984,49 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
     ));
   };
 
-  // Save settings
-  const saveSettings = () => {
-    setShowLoadingModal(true);
-    setLoadingMessage('Saving your settings...');
-    
-    setTimeout(() => {
-      setShowLoadingModal(false);
-      setShowSettingsModal(false);
-      setSuccessMessage('Settings saved successfully!');
-      setShowSuccessModal(true);
-      
-      // Mark task as complete
-      setTasks(prev => prev.map(task => 
+  // Handle user settings update
+  const updateUserSettings = (newSettings: Partial<User>) => {
+    setUser(prev => ({ ...prev, ...newSettings }));
+    setShowSettingsModal(false);
+    setSuccessMessage('Settings updated successfully!');
+    setShowSuccessModal(true);
+
+    // Mark business settings task as complete if not already
+    if (newSettings.businessType || newSettings.targetMarket) {
+      setTasks(prev => prev.map(task =>
         task.id === 2 ? { ...task, completed: true } : task
       ));
-    }, 1000);
+    }
   };
 
-  // Stats calculations
-  const totalContacts = contacts.length;
-  const idealClients = contacts.filter(c => c.category === 'Ideal Client').length;
-  const enrichedContacts = contacts.filter(c => c.isEnriched).length;
-  const referralPartners = contacts.filter(c => c.category === 'Referral Partners').length;
+  // Handle logout
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setAuthView('landing');
+    setCurrentView('dashboard');
+  };
 
-  // Get current ideal client for dashboard
-  const idealClientsList = contacts.filter(c => c.category === 'Ideal Client').sort((a, b) => a.name.localeCompare(b.name));
-  const currentIdealClient = idealClientsList[currentIdealClientIndex] || null;
-
-  // Mobile menu items
-  const navigationItems: NavigationItem[] = [
-    { view: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { view: 'contacts', label: 'Contacts', icon: Users },
-    { view: 'strategy', label: 'Strategy', icon: Target },
-    { view: 'lead-magnets', label: 'Lead Magnets', icon: FileText },
-    { view: 'tasks', label: 'Tasks', icon: CheckCircle },
-    { view: 'settings', label: 'Settings', icon: Settings }
-  ];
-
-  // Filtered contacts for search and category
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.position.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesFilter = selectedFilter === 'All' || contact.category === selectedFilter;
-    
-    return matchesSearch && matchesFilter;
-  });
-
-  // Authentication handlers
-  const handleAuth = () => {
+  // Handle authentication
+  const handleAuth = (type: 'login' | 'register') => {
+    // Simple validation
     if (!authForm.email || !authForm.password) {
       alert('Please fill in all required fields');
       return;
     }
 
-    if (authView === 'register') {
-      if (!authForm.name || !authForm.company || !authForm.confirmPassword) {
-        alert('Please fill in all fields');
-        return;
-      }
+    if (type === 'register') {
       if (authForm.password !== authForm.confirmPassword) {
         alert('Passwords do not match');
         return;
       }
+      if (!authForm.name || !authForm.company) {
+        alert('Please fill in all registration fields');
+        return;
+      }
     }
 
-    // Update user with registration info if signing up
-    if (authView === 'register') {
+    // Update user data for registration
+    if (type === 'register') {
       setUser(prev => ({
         ...prev,
         name: authForm.name,
@@ -771,156 +1036,122 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
     }
 
     setIsAuthenticated(true);
-    setAuthForm({ email: '', password: '', confirmPassword: '', name: '', company: '' });
+    setAuthForm({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      name: '',
+      company: ''
+    });
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setAuthView('landing');
-    setCurrentView('dashboard');
-  };
+  // Navigation items
+  const navigationItems: NavigationItem[] = [
+    { view: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { view: 'contacts', label: 'Contacts', icon: Users },
+    { view: 'strategy', label: 'Strategy', icon: Target },
+    { view: 'content', label: 'Content', icon: FileText },
+    { view: 'tasks', label: 'Tasks', icon: CheckCircle }
+  ];
 
-  // Close modals
-  const closeModals = () => {
-    setShowContactModal(false);
-    setShowLoadingModal(false);
-    setShowSuccessModal(false);
-    setShowLeadMagnetModal(false);
-    setShowSettingsModal(false);
-    setSelectedContact(null);
-    setSelectedLeadMagnet(null);
-  };
-
+  // Auth screens
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
+        <div className="bg-white bg-opacity-10 backdrop-blur rounded-2xl p-8 w-full max-w-md relative">
           {authView === 'landing' && (
-            <div className="text-center space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center justify-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-purple-900" />
-                  </div>
-                  <h1 className="text-2xl font-bold text-white">Glass Slipper</h1>
+            <div className="text-center space-y-6">
+              <div className="flex items-center justify-center space-x-3 mb-8">
+                <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-purple-900" />
                 </div>
-                
-                <h2 className="text-3xl font-bold text-white">
-                  Turn LinkedIn connections into <span className="text-yellow-400">qualified leads</span>
-                </h2>
-                
+                <h1 className="text-2xl font-bold text-white">Glass Slipper</h1>
+              </div>
+
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-white">Transform Your LinkedIn into a Lead Generation Engine</h2>
                 <p className="text-white text-opacity-70">
-                  Upload your LinkedIn connections, let AI categorise them intelligently, and get personalised outreach strategies.
+                  AI-powered ABM platform for professional services. Turn your LinkedIn connections into qualified prospects with intelligent automation.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <Upload className="w-8 h-8 text-blue-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-white mb-2">Smart Import</h3>
-                  <p className="text-white text-opacity-70 text-sm">
-                    Upload LinkedIn CSV exports and watch AI categorise your connections
-                  </p>
+              <div className="grid grid-cols-3 gap-4 my-8">
+                <div className="text-center">
+                  <div className="w-10 h-10 bg-yellow-400 bg-opacity-20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Users className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <p className="text-white text-sm">Smart Contact Management</p>
                 </div>
-
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <Target className="w-8 h-8 text-green-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-white mb-2">AI Categorisation</h3>
-                  <p className="text-white text-opacity-70 text-sm">
-                    Automatically identify ideal clients, referral partners, and competitors
-                  </p>
+                <div className="text-center">
+                  <div className="w-10 h-10 bg-yellow-400 bg-opacity-20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Target className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <p className="text-white text-sm">AI Categorisation</p>
                 </div>
-
-                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-center">
-                  <Zap className="w-8 h-8 text-purple-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-white mb-2">Personalised Outreach</h3>
-                  <p className="text-white text-opacity-70 text-sm">
-                    Get tailored messaging strategies and content for each contact
-                  </p>
+                <div className="text-center">
+                  <div className="w-10 h-10 bg-yellow-400 bg-opacity-20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Zap className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <p className="text-white text-sm">Lead Generation</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <button
                   onClick={() => setAuthView('register')}
-                  className="w-full bg-yellow-400 text-purple-900 py-3 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
+                  className="w-full py-3 bg-yellow-400 text-purple-900 rounded-lg font-medium hover:bg-yellow-500 transition-colors"
                 >
                   Get Started Free
                 </button>
-                
                 <button
                   onClick={() => setAuthView('login')}
-                  className="w-full bg-white bg-opacity-20 text-white py-3 rounded-lg font-semibold hover:bg-opacity-30 transition-colors"
+                  className="w-full py-3 border border-white border-opacity-30 text-white rounded-lg font-medium hover:bg-white hover:bg-opacity-10 transition-colors"
                 >
                   Sign In
                 </button>
               </div>
+
+              <div className="flex items-center space-x-4 text-white text-opacity-70 text-sm">
+                <div className="flex items-center space-x-1">
+                  <Shield className="w-4 h-4" />
+                  <span>Secure</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Zap className="w-4 h-4" />
+                  <span>Fast Setup</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Award className="w-4 h-4" />
+                  <span>AI-Powered</span>
+                </div>
+              </div>
             </div>
           )}
 
-          {(authView === 'login' || authView === 'register') && (
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
-              <div className="text-center mb-8">
+          {authView === 'login' && (
+            <div className="space-y-6">
+              <div className="text-center">
                 <div className="flex items-center justify-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
                     <Sparkles className="w-5 h-5 text-purple-900" />
                   </div>
-                  <h2 className="text-xl font-bold text-white">Glass Slipper</h2>
+                  <h1 className="text-xl font-bold text-white">Glass Slipper</h1>
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">
-                  {authView === 'register' ? 'Create Your Account' : 'Welcome Back'}
-                </h3>
-                <p className="text-white text-opacity-70 text-sm">
-                  {authView === 'register' ? 'Get started with Glass Slipper today' : 'Sign in to your account'}
-                </p>
+                <h2 className="text-lg font-semibold text-white">Welcome Back</h2>
+                <p className="text-white text-opacity-70 text-sm">Sign in to your Glass Slipper account</p>
               </div>
 
               <div className="space-y-4">
-                {authView === 'register' && (
-                  <>
-                    <div>
-                      <label className="block text-white text-sm font-medium mb-2">Full Name</label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                        <input
-                          type="text"
-                          value={authForm.name}
-                          onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                          placeholder="Enter your full name"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-white text-sm font-medium mb-2">Company</label>
-                      <div className="relative">
-                        <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                        <input
-                          type="text"
-                          value={authForm.company}
-                          onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
-                          className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                          placeholder="Enter your company name"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                    <Mail className="w-5 h-5 text-white text-opacity-50 absolute left-3 top-3" />
                     <input
                       type="email"
                       value={authForm.email}
                       onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="Enter your email"
-                      required
                     />
                   </div>
                 </div>
@@ -928,77 +1159,130 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
+                    <Lock className="w-5 h-5 text-white text-opacity-50 absolute left-3 top-3" />
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={authForm.password}
                       onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                      className="w-full pl-10 pr-10 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      className="w-full pl-10 pr-12 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       placeholder="Enter your password"
-                      required
                     />
                     <button
-                      type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-white"
+                      className="absolute right-3 top-3 text-white text-opacity-50 hover:text-opacity-80"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
 
-                {authView === 'register' && (
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">Confirm Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        value={authForm.confirmPassword}
-                        onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="w-full pl-10 pr-10 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                        placeholder="Confirm your password"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white text-opacity-50 hover:text-white"
-                      >
-                        {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
+                <button
+                  onClick={() => handleAuth('login')}
+                  className="w-full py-3 bg-yellow-400 text-purple-900 rounded-lg font-medium hover:bg-yellow-500 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-white text-opacity-70 text-sm text-center">
+                Don't have an account?{' '}
+                <button onClick={() => setAuthView('register')} className="text-yellow-400 hover:underline">
+                  Sign up here
+                </button>
+              </p>
+            </div>
+          )}
+
+          {authView === 'register' && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-3 mb-4">
+                  <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-purple-900" />
                   </div>
-                )}
+                  <h1 className="text-xl font-bold text-white">Glass Slipper</h1>
+                </div>
+                <h2 className="text-lg font-semibold text-white">Create Account</h2>
+                <p className="text-white text-opacity-70 text-sm">Start your LinkedIn ABM journey</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Full Name</label>
+                    <input
+                      type="text"
+                      value={authForm.name}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="John Smith"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Company</label>
+                    <input
+                      type="text"
+                      value={authForm.company}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
+                      className="w-full px-3 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Company Ltd"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="w-5 h-5 text-white text-opacity-50 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="john@company.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Password</label>
+                    <input
+                      type="password"
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full px-3 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Confirm</label>
+                    <input
+                      type="password"
+                      value={authForm.confirmPassword}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="w-full px-3 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Confirm"
+                    />
+                  </div>
+                </div>
 
                 <button
-                  onClick={handleAuth}
-                  className="w-full bg-yellow-400 text-purple-900 py-3 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
+                  onClick={() => handleAuth('register')}
+                  className="w-full py-3 bg-yellow-400 text-purple-900 rounded-lg font-medium hover:bg-yellow-500 transition-colors flex items-center justify-center space-x-2"
                 >
-                  {authView === 'register' ? 'Create Account' : 'Sign In'}
+                  <span>Create Account</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="mt-6 text-center">
-                <p className="text-white text-opacity-70 text-sm">
-                  {authView === 'register' ? 'Already have an account?' : "Don't have an account?"}{' '}
-                  <button 
-                    onClick={() => setAuthView(authView === 'register' ? 'login' : 'register')} 
-                    className="text-yellow-400 hover:underline"
-                  >
-                    {authView === 'register' ? 'Sign in here' : 'Sign up here'}
-                  </button>
-                </p>
-              </div>
-
-              <div className="mt-4 text-center">
-                <button
-                  onClick={() => setAuthView('landing')}
-                  className="text-white text-opacity-50 hover:text-white text-sm"
-                >
-                  ← Back to home
+              <p className="text-white text-opacity-70 text-sm text-center">
+                Already have an account?{' '}
+                <button onClick={() => setAuthView('login')} className="text-yellow-400 hover:underline">
+                  Sign in here
                 </button>
-              </div>
+              </p>
             </div>
           )}
         </div>
@@ -1012,15 +1296,6 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900">
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept=".csv"
-        className="hidden"
-      />
-
       {/* Header */}
       <header className="bg-purple-900 bg-opacity-50 backdrop-blur border-b border-purple-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1118,7 +1393,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
                 <div className="flex items-center space-x-3">
                   <Users className="w-8 h-8 text-blue-400" />
@@ -1135,6 +1410,16 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <div>
                     <p className="text-2xl font-bold text-white">{idealClients}</p>
                     <p className="text-white text-opacity-70 text-sm">Ideal Clients</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                <div className="flex items-center space-x-3">
+                  <UserCheck className="w-8 h-8 text-orange-400" />
+                  <div>
+                    <p className="text-2xl font-bold text-white">{champions}</p>
+                    <p className="text-white text-opacity-70 text-sm">Champions</p>
                   </div>
                 </div>
               </div>
@@ -1188,8 +1473,14 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   <div className="space-y-4">
                     <div>
                       <h4 className="text-lg font-medium text-white">{currentIdealClient.name}</h4>
+                      {currentIdealClient.lastName && (
+                        <p className="text-white text-opacity-60 text-sm">Last Name: {currentIdealClient.lastName}</p>
+                      )}
                       <p className="text-white text-opacity-70">{currentIdealClient.position}</p>
                       <p className="text-white text-opacity-70">{currentIdealClient.company}</p>
+                      {currentIdealClient.industry && (
+                        <p className="text-white text-opacity-70 text-sm">Industry: {currentIdealClient.industry}</p>
+                      )}
                     </div>
 
                     {currentIdealClient.isEnriched && (
@@ -1234,31 +1525,54 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                             >
                               {taskStatus.completed && <Check className="w-3 h-3 text-white" />}
                             </button>
-                            <span className={`text-sm ${taskStatus.completed ? 'text-green-400 line-through' : 'text-white'}`}>
+                            <span className={`text-sm ${taskStatus.completed ? 'text-white line-through' : 'text-white text-opacity-70'}`}>
                               {taskLabels[taskKey]}
                             </span>
                           </div>
                         );
                       })}
                     </div>
-
-                    <button
-                      onClick={() => {
-                        setSelectedContact(currentIdealClient);
-                        setShowContactModal(true);
-                      }}
-                      className="mt-4 px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors text-sm font-medium"
-                    >
-                      View Full Profile
-                    </button>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-left hover:bg-opacity-20 transition-all"
+              >
+                <Upload className="w-8 h-8 text-blue-400 mb-3" />
+                <h3 className="text-lg font-semibold text-white mb-2">Upload Contacts</h3>
+                <p className="text-white text-opacity-70 text-sm">Import your LinkedIn connections CSV</p>
+              </button>
+
+              <button
+                onClick={enrichIdealClients}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-left hover:bg-opacity-20 transition-all"
+                disabled={contacts.filter(c => !c.isEnriched).length === 0}
+              >
+                <Zap className="w-8 h-8 text-yellow-400 mb-3" />
+                <h3 className="text-lg font-semibold text-white mb-2">Enrich Contacts</h3>
+                <p className="text-white text-opacity-70 text-sm">Add phone numbers and company data</p>
+                <p className="text-yellow-400 text-xs mt-1">{enrichmentsLeft} enrichments remaining</p>
+              </button>
+
+              <button
+                onClick={categoriseContacts}
+                className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 text-left hover:bg-opacity-20 transition-all"
+                disabled={contacts.filter(c => !c.category).length === 0}
+              >
+                <Target className="w-8 h-8 text-green-400 mb-3" />
+                <h3 className="text-lg font-semibold text-white mb-2">Categorise Contacts</h3>
+                <p className="text-white text-opacity-70 text-sm">AI-powered contact classification</p>
+              </button>
+            </div>
+
             {/* Daily Tasks */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Daily ABM Tasks</h3>
+              <h3 className="text-xl font-semibold text-white mb-4">Today's LinkedIn Activities</h3>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1273,12 +1587,12 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     >
                       {dailyTasks.chooseIdealClients.completed && <Check className="w-4 h-4 text-white" />}
                     </button>
-                    <span className={`${dailyTasks.chooseIdealClients.completed ? 'text-green-400 line-through' : 'text-white'}`}>
-                      Choose {dailyTasks.chooseIdealClients.total} ideal clients to focus on
+                    <span className={`${dailyTasks.chooseIdealClients.completed ? 'text-white line-through' : 'text-white'}`}>
+                      Choose 5 ideal clients to focus on
                     </span>
                   </div>
                   <span className="text-white text-opacity-70 text-sm">
-                    {dailyTasks.chooseIdealClients.count}/{dailyTasks.chooseIdealClients.total}
+                    {dailyTasks.chooseIdealClients.count || 0}/5
                   </span>
                 </div>
 
@@ -1294,12 +1608,12 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     >
                       {dailyTasks.commentOnPosts.completed && <Check className="w-4 h-4 text-white" />}
                     </button>
-                    <span className={`${dailyTasks.commentOnPosts.completed ? 'text-green-400 line-through' : 'text-white'}`}>
-                      Comment on {dailyTasks.commentOnPosts.total} LinkedIn posts
+                    <span className={`${dailyTasks.commentOnPosts.completed ? 'text-white line-through' : 'text-white'}`}>
+                      Comment on 5 ideal client posts
                     </span>
                   </div>
                   <span className="text-white text-opacity-70 text-sm">
-                    {dailyTasks.commentOnPosts.count}/{dailyTasks.commentOnPosts.total}
+                    {dailyTasks.commentOnPosts.count || 0}/5
                   </span>
                 </div>
 
@@ -1315,41 +1629,47 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                     >
                       {dailyTasks.postContent.completed && <Check className="w-4 h-4 text-white" />}
                     </button>
-                    <span className={`${dailyTasks.postContent.completed ? 'text-green-400 line-through' : 'text-white'}`}>
-                      Share valuable content on LinkedIn
+                    <span className={`${dailyTasks.postContent.completed ? 'text-white line-through' : 'text-white'}`}>
+                      Post valuable content on LinkedIn
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-3"
-              >
-                <Upload className="w-6 h-6" />
-                <span className="font-medium">Import Contacts</span>
-              </button>
+            {/* Onboarding Tasks */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h3 className="text-xl font-semibold text-white mb-4">Setup Progress</h3>
               
-              <button
-                onClick={enrichIdealClients}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center space-x-3"
-                disabled={contacts.filter(c => !c.isEnriched).length === 0}
-              >
-                <Zap className="w-6 h-6" />
-                <span className="font-medium">Enrich Contacts</span>
-              </button>
-              
-              <button
-                onClick={aiCategorizeAll}
-                className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-3"
-                disabled={contacts.filter(c => !c.category || c.category === 'Uncategorised').length === 0}
-              >
-                <Target className="w-6 h-6" />
-                <span className="font-medium">AI Categorise</span>
-              </button>
+              <div className="space-y-3">
+                {tasks.map((task: Task) => (
+                  <div key={task.id} className="flex items-center space-x-3">
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                      task.completed
+                        ? 'bg-green-500 border-green-500'
+                        : task.priority === 'high'
+                        ? 'border-red-400'
+                        : task.priority === 'medium'
+                        ? 'border-yellow-400'
+                        : 'border-gray-400'
+                    }`}>
+                      {task.completed && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className={`flex-1 ${task.completed ? 'text-white line-through' : 'text-white'}`}>
+                      {task.text}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      task.priority === 'high'
+                        ? 'bg-red-500 bg-opacity-20 text-red-300'
+                        : task.priority === 'medium'
+                        ? 'bg-yellow-500 bg-opacity-20 text-yellow-300'
+                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                    }`}>
+                      {task.priority}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1357,154 +1677,186 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
         {/* Contacts View */}
         {currentView === 'contacts' && (
           <div className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold text-white">Contact Management</h2>
-              <p className="text-white text-opacity-70">Manage and categorise your LinkedIn connections</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Contacts</h2>
+                <p className="text-white text-opacity-70">Manage and categorise your LinkedIn connections</p>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center space-x-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload CSV</span>
+                </button>
+                
+                <button
+                  onClick={enrichIdealClients}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
+                  disabled={contacts.filter(c => !c.isEnriched).length === 0}
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Enrich Contacts</span>
+                </button>
+              </div>
             </div>
 
             {/* Search and Filter */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                  <input
-                    type="text"
-                    placeholder="Search contacts..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                  />
+              <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="w-5 h-5 text-white text-opacity-50 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, company, position, industry..."
+                      value={searchTerm}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    />
+                  </div>
                 </div>
-                
-                <div className="relative">
-                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50" />
-                  <select
-                    value={selectedFilter}
-                    onChange={(e) => setSelectedFilter(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 appearance-none"
-                  >
-                    <option value="All">All Categories</option>
-                    <option value="Ideal Client">Ideal Clients</option>
-                    <option value="Referral Partners">Referral Partners</option>
-                    <option value="Competitors">Competitors</option>
-                    <option value="Other">Other</option>
-                    <option value="Uncategorised">Uncategorised</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white text-opacity-50 pointer-events-none" />
-                </div>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategoryFilter(e.target.value)}
+                  className="px-4 py-3 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option value="All">All Categories</option>
+                  {categories.map((category: string) => (
+                    <option key={category} value={category} className="text-black">{category}</option>
+                  ))}
+                  <option value="Uncategorised" className="text-black">Uncategorised</option>
+                </select>
               </div>
             </div>
 
-            {/* Contact List */}
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <div className="space-y-4">
-                {filteredContacts.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Users className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
-                    <h3 className="text-xl text-white text-opacity-70 mb-2">No contacts found</h3>
-                    <p className="text-white text-opacity-50">
-                      {contacts.length === 0 
-                        ? "Upload a CSV file to get started" 
-                        : "Try adjusting your search or filter criteria"
-                      }
-                    </p>
-                  </div>
-                ) : (
-                  filteredContacts.map(contact => (
-                    <div key={contact.id} className="bg-white bg-opacity-10 rounded-lg p-4 hover:bg-opacity-20 transition-all duration-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
-                            <span className="text-white font-semibold">
-                              {contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </span>
-                          </div>
-                          
-                          <div>
-                            <h4 className="text-white font-semibold">
-                              {contact.name}
-                              {contact.lastName && (
-                                <span className="text-white text-opacity-70 ml-2 text-sm">
-                                  (Last: {contact.lastName})
+            {/* Contacts Table */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl overflow-hidden">
+              {filteredContacts.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Users className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">No contacts found</h3>
+                  <p className="text-white text-opacity-70 mb-6">
+                    {contacts.length === 0 ? 'Upload your LinkedIn connections to get started' : 'Try adjusting your search or filter criteria'}
+                  </p>
+                  {contacts.length === 0 && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
+                    >
+                      Upload LinkedIn CSV
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white border-opacity-20">
+                        <th className="text-left py-4 px-6 text-white font-medium">Name</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Company</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Position</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Industry</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Category</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Status</th>
+                        <th className="text-left py-4 px-6 text-white font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredContacts.map((contact: Contact) => {
+                        // Generate avatar initials using firstName and lastName if available
+                        const generateInitials = (contact: Contact) => {
+                          if (contact.lastName) {
+                            const firstName = contact.name.split(' ')[0];
+                            return (firstName[0] + contact.lastName[0]).toUpperCase();
+                          }
+                          return contact.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                        };
+
+                        return (
+                        <tr key={contact.id} className="border-b border-white border-opacity-10 hover:bg-white hover:bg-opacity-5">
+                          <td className="py-4 px-6">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {generateInitials(contact)}
                                 </span>
-                              )}
-                            </h4>
-                            <p className="text-white text-opacity-70 text-sm">{contact.position}</p>
-                            <p className="text-white text-opacity-60 text-sm">{contact.company}</p>
-                            {contact.isEnriched && contact.industry && (
-                              <p className="text-white text-opacity-50 text-xs mt-1">
-                                Industry: {contact.industry}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4">
-                          {contact.isEnriched && (
-                            <div className="flex items-center space-x-2 text-green-400">
-                              <CheckCircle className="w-4 h-4" />
-                              <span className="text-sm">Enriched</span>
+                              </div>
+                              <div>
+                                <p className="text-white font-medium">{contact.name}</p>
+                                <p className="text-white text-opacity-70 text-sm">{contact.email}</p>
+                              </div>
                             </div>
-                          )}
-                          
-                          <div className="flex items-center space-x-2">
-                            <select
-                              value={contact.category || 'Uncategorised'}
-                              onChange={(e) => updateCategory(contact.id, e.target.value)}
-                              className="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded border border-white border-opacity-30 focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                            >
-                              <option value="Uncategorised">Uncategorised</option>
-                              <option value="Ideal Client">Ideal Client</option>
-                              <option value="Referral Partners">Referral Partners</option>
-                              <option value="Competitors">Competitors</option>
-                              <option value="Other">Other</option>
-                            </select>
-                            
+                          </td>
+                          <td className="py-4 px-6">
+                            <p className="text-white">{contact.company}</p>
+                          </td>
+                          <td className="py-4 px-6">
+                            <p className="text-white">{contact.position}</p>
+                          </td>
+                          <td className="py-4 px-6">
+                            <p className="text-white text-opacity-70">
+                              {contact.industry || 'Not available'}
+                            </p>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-3 py-1 rounded-full text-sm ${
+                              contact.category === 'Ideal Client'
+                                ? 'bg-green-500 bg-opacity-20 text-green-300'
+                                : contact.category === 'Champions'
+                                ? 'bg-orange-500 bg-opacity-20 text-orange-300'
+                                : contact.category === 'Referral Partners'
+                                ? 'bg-blue-500 bg-opacity-20 text-blue-300'
+                                : contact.category === 'Competitors'
+                                ? 'bg-red-500 bg-opacity-20 text-red-300'
+                                : contact.category === 'Other'
+                                ? 'bg-gray-500 bg-opacity-20 text-gray-300'
+                                : 'bg-yellow-500 bg-opacity-20 text-yellow-300'
+                            }`}>
+                              {contact.category || 'Uncategorised'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center space-x-2">
+                              {contact.isEnriched ? (
+                                <div className="flex items-center space-x-1">
+                                  <CheckCircle className="w-4 h-4 text-green-400" />
+                                  <span className="text-green-400 text-sm">
+                                    Enriched
+                                    {contact.lastName && contact.industry && contact.industry !== 'Not found' && 
+                                      <span className="text-green-300 text-xs ml-1">(Full)</span>
+                                    }
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-1">
+                                  <AlertCircle className="w-4 h-4 text-yellow-400" />
+                                  <span className="text-yellow-400 text-sm">Basic</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
                             <button
                               onClick={() => {
                                 setSelectedContact(contact);
                                 setShowContactModal(true);
                               }}
-                              className="text-white text-opacity-70 hover:text-white p-2"
+                              className="text-white hover:text-yellow-400 transition-colors"
                             >
-                              <MoreVertical className="w-4 h-4" />
+                              <Edit2 className="w-4 h-4" />
                             </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-3"
-              >
-                <Upload className="w-5 h-5" />
-                <span>Import CSV</span>
-              </button>
-              
-              <button
-                onClick={enrichIdealClients}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center space-x-3"
-                disabled={contacts.filter(c => !c.isEnriched).length === 0}
-              >
-                <Zap className="w-5 h-5" />
-                <span>Enrich All</span>
-              </button>
-              
-              <button
-                onClick={aiCategorizeAll}
-                className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-3"
-                disabled={contacts.filter(c => !c.category || c.category === 'Uncategorised').length === 0}
-              >
-                <Target className="w-5 h-5" />
-                <span>AI Categorise</span>
-              </button>
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1512,98 +1864,57 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
         {/* Strategy View */}
         {currentView === 'strategy' && (
           <div className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold text-white">LinkedIn Strategy Builder</h2>
-              <p className="text-white text-opacity-70">Create your personalised ABM strategy</p>
+            <div>
+              <h2 className="text-2xl font-bold text-white">LinkedIn Strategy</h2>
+              <p className="text-white text-opacity-70">Generate and manage your ABM strategy</p>
             </div>
 
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    What's your one main offer or service? *
-                  </label>
-                  <textarea
-                    value={strategy.oneOffer}
-                    onChange={(e) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-                    rows={3}
-                    placeholder="e.g., We help small businesses increase their revenue by 30% through targeted digital marketing strategies..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Who are your ideal referral partners? *
-                  </label>
-                  <textarea
-                    value={strategy.idealReferralPartners}
-                    onChange={(e) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-                    rows={3}
-                    placeholder="e.g., Accountants, business coaches, web developers, HR consultants..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    What makes you special or different? *
-                  </label>
-                  <textarea
-                    value={strategy.specialFactors}
-                    onChange={(e) => setStrategy(prev => ({ ...prev, specialFactors: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-                    rows={3}
-                    placeholder="e.g., 15 years experience, certified Google Partner, award-winning campaigns, guaranteed results..."
-                  />
-                </div>
-
+            {!strategy.generatedStrategy ? (
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+                <Target className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-4">Generate Your LinkedIn Strategy</h3>
+                <p className="text-white text-opacity-70 mb-6">
+                  Create a personalised ABM strategy based on your business profile and contact analysis
+                </p>
                 <button
                   onClick={generateStrategy}
-                  className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-purple-900 py-3 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-600 transition-all duration-200"
-                  disabled={!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors}
+                  className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
                 >
-                  Generate My LinkedIn Strategy
+                  Generate Strategy
                 </button>
               </div>
-            </div>
-
-            {strategy.generatedStrategy && (
+            ) : (
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-white">Your Personalised Strategy</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-white">Your LinkedIn ABM Strategy</h3>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(strategy.generatedStrategy);
-                      setSuccessMessage('Strategy copied to clipboard!');
-                      setShowSuccessModal(true);
-                    }}
+                    onClick={generateStrategy}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
                   >
-                    <Copy className="w-4 h-4" />
-                    <span>Copy</span>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Regenerate</span>
                   </button>
                 </div>
                 
-                <div className="bg-black bg-opacity-30 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <pre className="text-white text-sm whitespace-pre-wrap font-mono">
+                <div className="prose prose-invert max-w-none">
+                  <div className="whitespace-pre-wrap text-white text-opacity-90">
                     {strategy.generatedStrategy}
-                  </pre>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Lead Magnets View */}
-        {currentView === 'lead-magnets' && (
+        {/* Content View */}
+        {currentView === 'content' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-white">Lead Magnets</h2>
-                <p className="text-white text-opacity-70">Create valuable content for your audience</p>
+                <h2 className="text-2xl font-bold text-white">Content Library</h2>
+                <p className="text-white text-opacity-70">Manage your lead magnets and marketing materials</p>
               </div>
-
+              
               <button
                 onClick={generateLeadMagnet}
                 className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center space-x-2"
@@ -1614,76 +1925,64 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
             </div>
 
             {leadMagnets.length === 0 ? (
-              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-12 text-center">
-                <FileText className="w-16 h-16 text-white text-opacity-30 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Lead Magnets Yet</h3>
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+                <FileText className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-4">No Content Yet</h3>
                 <p className="text-white text-opacity-70 mb-6">
-                  Create your first lead magnet to start capturing and nurturing leads from your LinkedIn activities.
+                  Create your first lead magnet to start building your content library
                 </p>
                 <button
                   onClick={generateLeadMagnet}
-                  className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors inline-flex items-center space-x-2"
+                  className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
                 >
-                  <Plus className="w-5 h-5" />
-                  <span>Create Your First Lead Magnet</span>
+                  Create Lead Magnet
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {leadMagnets.map(magnet => (
-                  <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 hover:bg-opacity-20 transition-all duration-200">
+                {leadMagnets.map((leadMagnet: LeadMagnet) => (
+                  <div key={leadMagnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
                     <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-2">{magnet.title}</h3>
-                        <p className="text-white text-opacity-70 text-sm mb-3 line-clamp-3">
-                          {magnet.description}
-                        </p>
-                        
-                        <div className="flex items-center space-x-4 text-sm text-white text-opacity-60">
-                          <span className="flex items-center space-x-1">
-                            <FileText className="w-4 h-4" />
-                            <span>{magnet.type}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{magnet.created}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Download className="w-4 h-4" />
-                            <span>{magnet.downloads}</span>
-                          </span>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">{leadMagnet.title}</h3>
+                          <p className="text-white text-opacity-70 text-sm">{leadMagnet.type}</p>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => downloadLeadMagnet(magnet)}
-                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download</span>
-                      </button>
                       
                       <button
                         onClick={() => {
-                          setSelectedLeadMagnet(magnet);
+                          setSelectedLeadMagnet(leadMagnet);
                           setShowLeadMagnetModal(true);
                         }}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        className="text-white hover:text-yellow-400"
                       >
-                        <Eye className="w-4 h-4" />
+                        <MoreVertical className="w-4 h-4" />
                       </button>
+                    </div>
+                    
+                    <p className="text-white text-opacity-70 text-sm mb-4">{leadMagnet.description}</p>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4 text-white text-opacity-70 text-sm">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{leadMagnet.created}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Download className="w-4 h-4" />
+                          <span>{leadMagnet.downloads}</span>
+                        </div>
+                      </div>
                       
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(magnet.content);
-                          setSuccessMessage('Lead magnet content copied to clipboard!');
-                          setShowSuccessModal(true);
-                        }}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        onClick={() => downloadLeadMagnet(leadMagnet)}
+                        className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 transition-colors"
                       >
-                        <Copy className="w-4 h-4" />
+                        Download
                       </button>
                     </div>
                   </div>
@@ -1696,324 +1995,262 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
         {/* Tasks View */}
         {currentView === 'tasks' && (
           <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-3xl font-bold text-white">Onboarding Tasks</h2>
-              <p className="text-white text-opacity-70">Complete these tasks to optimise your ABM setup</p>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Tasks & Activities</h2>
+              <p className="text-white text-opacity-70">Track your progress and daily activities</p>
             </div>
 
+            {/* Daily Tasks Section */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h3 className="text-xl font-semibold text-white mb-4">Today's LinkedIn Activities</h3>
+              
               <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleDailyTask('chooseIdealClients')}
+                      className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                        dailyTasks.chooseIdealClients.completed
+                          ? 'bg-green-500 border-green-500'
+                          : 'border-white border-opacity-30 hover:border-opacity-50'
+                      }`}
+                    >
+                      {dailyTasks.chooseIdealClients.completed && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                    <div>
+                      <span className={`font-medium ${dailyTasks.chooseIdealClients.completed ? 'text-white line-through' : 'text-white'}`}>
+                        Choose 5 ideal clients to focus on
+                      </span>
+                      <p className="text-white text-opacity-70 text-sm">
+                        Review your ideal client list and select priority contacts for today
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-white text-opacity-70 text-sm font-medium">
+                    {dailyTasks.chooseIdealClients.count || 0}/5
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleDailyTask('commentOnPosts')}
+                      className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                        dailyTasks.commentOnPosts.completed
+                          ? 'bg-green-500 border-green-500'
+                          : 'border-white border-opacity-30 hover:border-opacity-50'
+                      }`}
+                    >
+                      {dailyTasks.commentOnPosts.completed && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                    <div>
+                      <span className={`font-medium ${dailyTasks.commentOnPosts.completed ? 'text-white line-through' : 'text-white'}`}>
+                        Comment on 5 ideal client posts
+                      </span>
+                      <p className="text-white text-opacity-70 text-sm">
+                        Engage meaningfully with your target prospects' content
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-white text-opacity-70 text-sm font-medium">
+                    {dailyTasks.commentOnPosts.count || 0}/5
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleDailyTask('postContent')}
+                      className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                        dailyTasks.postContent.completed
+                          ? 'bg-green-500 border-green-500'
+                          : 'border-white border-opacity-30 hover:border-opacity-50'
+                      }`}
+                    >
+                      {dailyTasks.postContent.completed && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                    <div>
+                      <span className={`font-medium ${dailyTasks.postContent.completed ? 'text-white line-through' : 'text-white'}`}>
+                        Post valuable content on LinkedIn
+                      </span>
+                      <p className="text-white text-opacity-70 text-sm">
+                        Share insights that demonstrate your expertise to your network
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Setup Tasks Section */}
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+              <h3 className="text-xl font-semibold text-white mb-4">Setup Progress</h3>
+              
+              <div className="space-y-3">
                 {tasks.map((task: Task) => (
                   <div key={task.id} className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                         task.completed
                           ? 'bg-green-500 border-green-500'
-                          : 'border-white border-opacity-30'
+                          : task.priority === 'high'
+                          ? 'border-red-400'
+                          : task.priority === 'medium'
+                          ? 'border-yellow-400'
+                          : 'border-gray-400'
                       }`}>
-                        {task.completed && <Check className="w-4 h-4 text-white" />}
+                        {task.completed && <Check className="w-3 h-3 text-white" />}
                       </div>
-                      
-                      <div>
-                        <p className={`font-medium ${task.completed ? 'text-green-400 line-through' : 'text-white'}`}>
-                          {task.text}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            task.priority === 'high' ? 'bg-red-500 bg-opacity-20 text-red-400' :
-                            task.priority === 'medium' ? 'bg-yellow-500 bg-opacity-20 text-yellow-400' :
-                            'bg-green-500 bg-opacity-20 text-green-400'
-                          }`}>
-                            {task.priority} priority
-                          </span>
-                        </div>
-                      </div>
+                      <span className={`flex-1 font-medium ${task.completed ? 'text-white line-through' : 'text-white'}`}>
+                        {task.text}
+                      </span>
                     </div>
-
-                    <div className="flex items-center space-x-2">
-                      {task.id === 1 && (
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={task.completed}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Upload CSV
-                        </button>
-                      )}
-                      {task.id === 2 && (
-                        <button
-                          onClick={() => setShowSettingsModal(true)}
-                          disabled={task.completed}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Configure
-                        </button>
-                      )}
-                      {task.id === 3 && (
-                        <button
-                          onClick={enrichIdealClients}
-                          disabled={task.completed || contacts.filter(c => !c.isEnriched).length === 0}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Enrich
-                        </button>
-                      )}
-                      {task.id === 4 && (
-                        <button
-                          onClick={aiCategorizeAll}
-                          disabled={task.completed || contacts.filter(c => !c.category || c.category === 'Uncategorised').length === 0}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Categorise
-                        </button>
-                      )}
-                      {task.id === 5 && (
-                        <button
-                          onClick={() => setCurrentView('strategy')}
-                          disabled={task.completed}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Create Strategy
-                        </button>
-                      )}
-                      {task.id === 6 && (
-                        <button
-                          onClick={generateLeadMagnet}
-                          disabled={task.completed}
-                          className="px-3 py-1 bg-yellow-400 text-purple-900 rounded text-sm hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Create Magnet
-                        </button>
-                      )}
-                    </div>
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      task.priority === 'high'
+                        ? 'bg-red-500 bg-opacity-20 text-red-300'
+                        : task.priority === 'medium'
+                        ? 'bg-yellow-500 bg-opacity-20 text-yellow-300'
+                        : 'bg-gray-500 bg-opacity-20 text-gray-300'
+                    }`}>
+                      {task.priority}
+                    </span>
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-6 text-center">
-                <div className="text-white text-opacity-70 text-sm">
-                  Progress: {tasks.filter(t => t.completed).length} of {tasks.length} tasks completed
-                </div>
-                <div className="w-full bg-white bg-opacity-20 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-yellow-400 h-2 rounded-full transition-all"
-                    style={{ width: `${(tasks.filter(t => t.completed).length / tasks.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings View */}
-        {currentView === 'settings' && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-3xl font-bold text-white">Settings</h2>
-              <p className="text-white text-opacity-70">Configure your business profile and preferences</p>
-            </div>
-
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-6">Business Profile</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">Business Type</label>
-                  <input
-                    type="text"
-                    value={user.businessType}
-                    onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Marketing Agency"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">Target Market</label>
-                  <input
-                    type="text"
-                    value={user.targetMarket}
-                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="e.g., Small Business Owners"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-white text-sm font-medium mb-2">Writing Style</label>
-                  <textarea
-                    value={user.writingStyle}
-                    onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-                    rows={3}
-                    placeholder="Describe your preferred communication style..."
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-white text-sm font-medium mb-2">Ideal Referral Partners</label>
-                  <textarea
-                    value={user.referralPartners}
-                    onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-                    rows={3}
-                    placeholder="List your ideal referral partner types..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={saveSettings}
-                  className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
-                >
-                  Save Settings
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Account Information</h3>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">Name</label>
-                    <p className="text-white text-opacity-70">{user.name}</p>
-                  </div>
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">Email</label>
-                    <p className="text-white text-opacity-70">{user.email}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">Company</label>
-                  <p className="text-white text-opacity-70">{user.company}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Usage Statistics</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-yellow-400">{enrichmentsLeft}</p>
-                  <p className="text-white text-opacity-70 text-sm">Enrichments Remaining</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-green-400">{contacts.length}</p>
-                  <p className="text-white text-opacity-70 text-sm">Total Contacts</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-purple-400">{leadMagnets.length}</p>
-                  <p className="text-white text-opacity-70 text-sm">Lead Magnets Created</p>
-                </div>
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Contact Detail Modal */}
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+
+      {/* Loading Modal */}
+      {showLoadingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center">
+            <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-white text-lg">{loadingMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-8 text-center max-w-md">
+            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <p className="text-white text-lg mb-6">{successMessage}</p>
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Modal */}
       {showContactModal && selectedContact && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-white">Contact Details</h3>
               <button
                 onClick={() => setShowContactModal(false)}
-                className="text-white text-opacity-70 hover:text-white"
+                className="text-white hover:text-yellow-400"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Contact Info */}
-              <div className="bg-white bg-opacity-10 rounded-lg p-4">
-                <div className="flex items-start space-x-4">
-                  <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">
-                      {selectedContact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </span>
-                  </div>
+            {/* Contact Info */}
+            <div className="bg-white bg-opacity-10 rounded-lg p-4 mb-6">
+              <div className="flex items-start space-x-4">
+                <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-xl">
+                    {selectedContact.lastName 
+                      ? (selectedContact.name.split(' ')[0][0] + selectedContact.lastName[0]).toUpperCase()
+                      : selectedContact.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                    }
+                  </span>
+                </div>
+                
+                <div className="flex-1">
+                  <h4 className="text-lg font-semibold text-white">{selectedContact.name}</h4>
+                  {selectedContact.lastName && (
+                    <p className="text-white text-opacity-60 text-sm">Last Name: {selectedContact.lastName}</p>
+                  )}
+                  <p className="text-white text-opacity-70">{selectedContact.position}</p>
+                  <p className="text-white text-opacity-70">{selectedContact.company}</p>
+                  {selectedContact.industry && (
+                    <p className="text-white text-opacity-70 text-sm">Industry: {selectedContact.industry}</p>
+                  )}
                   
-                  <div className="flex-1">
-                    <h4 className="text-lg font-semibold text-white">{selectedContact.name}</h4>
-                    {selectedContact.lastName && (
-                      <p className="text-white text-opacity-60 text-sm">Last Name: {selectedContact.lastName}</p>
-                    )}
-                    <p className="text-white text-opacity-70">{selectedContact.position}</p>
-                    <p className="text-white text-opacity-70">{selectedContact.company}</p>
-                    
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Mail className="w-4 h-4 text-blue-400" />
-                        <span className="text-white text-sm">{selectedContact.email}</span>
-                      </div>
-                      
-                      {selectedContact.isEnriched && (
-                        <>
-                          {selectedContact.phone && (
-                            <div className="flex items-center space-x-2">
-                              <Phone className="w-4 h-4 text-green-400" />
-                              <span className="text-white text-sm">{selectedContact.phone}</span>
-                            </div>
-                          )}
-                          {selectedContact.website && (
-                            <div className="flex items-center space-x-2">
-                              <Globe className="w-4 h-4 text-purple-400" />
-                              <span className="text-white text-sm">{selectedContact.website}</span>
-                            </div>
-                          )}
-                          {selectedContact.industry && (
-                            <div className="flex items-center space-x-2">
-                              <Briefcase className="w-4 h-4 text-orange-400" />
-                              <span className="text-white text-sm">{selectedContact.industry}</span>
-                            </div>
-                          )}
-                        </>
-                      )}
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Mail className="w-4 h-4 text-blue-400" />
+                      <span className="text-white text-sm">{selectedContact.email}</span>
                     </div>
+                    
+                    {selectedContact.isEnriched && (
+                      <>
+                        <div className="flex items-center space-x-2">
+                          <Phone className="w-4 h-4 text-green-400" />
+                          <span className="text-white text-sm">{selectedContact.phone}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Globe className="w-4 h-4 text-purple-400" />
+                          <span className="text-white text-sm">{selectedContact.website}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Category Selection */}
-              <div>
-                <label className="block text-white text-sm font-medium mb-2">Category</label>
-                <select
-                  value={selectedContact.category || 'Uncategorised'}
-                  onChange={(e) => {
-                    updateCategory(selectedContact.id, e.target.value);
-                    setSelectedContact(prev => prev ? { ...prev, category: e.target.value } : null);
-                  }}
-                  className="w-full bg-white bg-opacity-20 text-white px-4 py-3 rounded-lg border border-white border-opacity-30 focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                >
-                  <option value="Uncategorised">Uncategorised</option>
-                  <option value="Ideal Client">Ideal Client</option>
-                  <option value="Referral Partners">Referral Partners</option>
-                  <option value="Competitors">Competitors</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
+            {/* Category Selection */}
+            <div className="mb-6">
+              <label className="block text-white text-sm font-medium mb-2">Category</label>
+              <select
+                value={selectedContact.category || 'Uncategorised'}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  updateCategory(selectedContact.id, e.target.value);
+                  setSelectedContact(prev => prev ? { ...prev, category: e.target.value } : null);
+                }}
+                className="w-full px-3 py-2 bg-white bg-opacity-20 text-white rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              >
+                <option value="Uncategorised" className="text-black">Uncategorised</option>
+                {categories.map((category: string) => (
+                  <option key={category} value={category} className="text-black">{category}</option>
+                ))}
+              </select>
+            </div>
 
-              {/* Action Buttons */}
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowContactModal(false)}
-                  className="flex-1 bg-white bg-opacity-20 text-white py-3 rounded-lg hover:bg-opacity-30 transition-all duration-200"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => deleteContact(selectedContact.id)}
-                  className="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => deleteContact(selectedContact.id)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
+              </button>
+              
+              <button
+                onClick={() => setShowContactModal(false)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -2022,41 +2259,47 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
       {/* Lead Magnet Modal */}
       {showLeadMagnetModal && selectedLeadMagnet && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-white">{selectedLeadMagnet.title}</h3>
               <button
                 onClick={() => setShowLeadMagnetModal(false)}
-                className="text-white text-opacity-70 hover:text-white"
+                className="text-white hover:text-yellow-400"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="bg-black bg-opacity-30 rounded-lg p-4 max-h-96 overflow-y-auto mb-6">
-              <pre className="text-white text-sm whitespace-pre-wrap">
-                {selectedLeadMagnet.content}
-              </pre>
+            <div className="bg-white bg-opacity-10 rounded-lg p-6 mb-6">
+              <div className="prose prose-invert max-w-none">
+                <div className="whitespace-pre-wrap text-white text-opacity-90 text-sm">
+                  {selectedLeadMagnet.content}
+                </div>
+              </div>
             </div>
 
-            <div className="flex space-x-3">
-              <button
-                onClick={() => downloadLeadMagnet(selectedLeadMagnet)}
-                className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center justify-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download</span>
-              </button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedLeadMagnet.content);
-                  setSuccessMessage('Content copied to clipboard!');
-                  setShowSuccessModal(true);
-                }}
-                className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 text-white text-opacity-70 text-sm">
+                <span>Created: {selectedLeadMagnet.created}</span>
+                <span>Downloads: {selectedLeadMagnet.downloads}</span>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => downloadLeadMagnet(selectedLeadMagnet)}
+                  className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowLeadMagnetModal(false)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2065,12 +2308,12 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
       {/* Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-md w-full">
+          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-white">Configure Settings</h3>
+              <h3 className="text-xl font-semibold text-white">Settings</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="text-white text-opacity-70 hover:text-white"
+                className="text-white hover:text-yellow-400"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -2083,8 +2326,7 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   type="text"
                   value={user.businessType}
                   onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                  placeholder="e.g., Marketing Agency"
+                  className="w-full px-3 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 />
               </div>
 
@@ -2094,51 +2336,45 @@ Success in ${user.targetMarket} requires a systematic approach, continuous learn
                   type="text"
                   value={user.targetMarket}
                   onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                  placeholder="e.g., Small Business Owners"
+                  className="w-full px-3 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 />
               </div>
 
+              <div>
+                <label className="block text-white text-sm font-medium mb-2">Referral Partners</label>
+                <input
+                  type="text"
+                  value={user.referralPartners}
+                  onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
+                  className="w-full px-3 py-2 bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-50 rounded-lg focus:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-6">
               <button
-                onClick={saveSettings}
-                className="w-full bg-yellow-400 text-purple-900 py-3 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >
-                Save Settings
+                Cancel
+              </button>
+              
+              <button
+                onClick={() => updateUserSettings({
+                  businessType: user.businessType,
+                  targetMarket: user.targetMarket,
+                  referralPartners: user.referralPartners
+                })}
+                className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Success!</h3>
-            <p className="text-white text-opacity-70 mb-6">{successMessage}</p>
-            <button
-              onClick={() => setShowSuccessModal(false)}
-              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Loading Modal */}
-      {showLoadingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-md w-full text-center">
-            <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 className="text-xl font-semibold text-white mb-2">Processing...</h3>
-            <p className="text-white text-opacity-70">{loadingMessage}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
+};
+
+export default GlassSlipperApp;
