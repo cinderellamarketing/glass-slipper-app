@@ -1,3 +1,7 @@
+// STAGE 1 CORE DATA PARSING FIX: Enhanced Contact Enrichment API
+// Fixed data parsing, field mapping, and JSON response validation
+// This addresses the primary issues where company/position fields were being swapped
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // Enhanced Contact interface with validation
@@ -390,7 +394,7 @@ function validatePositionField(enrichedPosition: string, originalPosition: strin
 
 // STAGE 1 FIX: Enhanced validation helper functions
 function looksLikePersonalName(text: string): boolean {
-  if (!text || text.length < 2) return false;
+  if (!text || typeof text !== 'string' || text.length < 2) return false;
   
   const personalNamePatterns = [
     /^[A-Z][a-z]+ [A-Z][a-z]+$/,    // "John Smith"
@@ -402,7 +406,7 @@ function looksLikePersonalName(text: string): boolean {
 }
 
 function looksLikeJobTitle(text: string): boolean {
-  if (!text || text.length < 3) return false;
+  if (!text || typeof text !== 'string' || text.length < 3) return false;
   
   const jobTitleKeywords = [
     'manager', 'director', 'executive', 'analyst', 'consultant', 'advisor',
@@ -417,7 +421,7 @@ function looksLikeJobTitle(text: string): boolean {
 }
 
 function looksLikeCompanyName(text: string): boolean {
-  if (!text || text.length < 2) return false;
+  if (!text || typeof text !== 'string' || text.length < 2) return false;
   
   const companyIndicators = [
     'ltd', 'limited', 'inc', 'incorporated', 'corp', 'corporation',

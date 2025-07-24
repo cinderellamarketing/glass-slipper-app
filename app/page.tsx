@@ -199,6 +199,49 @@ const GlassSlipperApp = () => {
     { view: 'daily', label: 'Daily Tasks', icon: CheckCircle }
   ];
 
+  // STAGE 1 FIX: Helper functions for field validation (defined first)
+  const looksLikePersonalName = (text: string): boolean => {
+    if (!text || typeof text !== 'string') return false;
+    const personalNamePatterns = [
+      /^[A-Z][a-z]+ [A-Z][a-z]+$/,  // "John Smith" format
+      /^[A-Z][a-z]+$/,               // Single name like "Smith"
+    ];
+    return personalNamePatterns.some((pattern: RegExp) => pattern.test(text.trim()));
+  };
+
+  const looksLikeJobTitle = (text: string): boolean => {
+    if (!text || typeof text !== 'string') return false;
+    const jobTitleKeywords = [
+      'manager', 'director', 'executive', 'analyst', 'consultant', 'advisor',
+      'specialist', 'coordinator', 'assistant', 'officer', 'representative',
+      'administrator', 'supervisor', 'lead', 'head', 'chief', 'senior',
+      'junior', 'associate', 'partner', 'founder', 'owner', 'president'
+    ];
+    const lowerText = text.toLowerCase();
+    return jobTitleKeywords.some((keyword: string) => lowerText.includes(keyword));
+  };
+
+  // STAGE 1 FIX: Helper functions for enriched data validation
+  const validateEnrichedCompany = (enrichedCompany: string, originalCompany: string): string => {
+    // If enriched company looks like a personal name, keep original
+    if (enrichedCompany && looksLikePersonalName(enrichedCompany)) {
+      console.warn(`⚠️ Enriched company "${enrichedCompany}" looks like personal name, keeping original: "${originalCompany}"`);
+      return originalCompany;
+    }
+    // If enriched company is valid, use it; otherwise keep original
+    return enrichedCompany && enrichedCompany !== 'Not found' ? enrichedCompany : originalCompany;
+  };
+
+  const validateEnrichedPosition = (enrichedPosition: string, originalPosition: string): string => {
+    // If enriched position looks like a company name, keep original
+    if (enrichedPosition && !looksLikeJobTitle(enrichedPosition) && enrichedPosition.length > 3) {
+      console.warn(`⚠️ Enriched position "${enrichedPosition}" doesn't look like job title, keeping original: "${originalPosition}"`);
+      return originalPosition;
+    }
+    // If enriched position is valid, use it; otherwise keep original
+    return enrichedPosition && enrichedPosition !== 'Not found' ? enrichedPosition : originalPosition;
+  };
+
   // STAGE 1 FIX: Enhanced contact parsing with better field validation
   const parseContactsFromCSV = useCallback((csvText: string): Contact[] => {
     console.log('🔍 PARSING: Starting CSV parsing...');
@@ -242,7 +285,7 @@ const GlassSlipperApp = () => {
         // Company field - validate it's actually a company name
         else if (lowerHeader.includes('company') || lowerHeader.includes('organisation') || lowerHeader.includes('organization')) {
           // STAGE 1 FIX: Validate company field doesn't contain personal names
-          if (value && !this.looksLikePersonalName(value)) {
+          if (value && !looksLikePersonalName(value)) {
             contact.company = value;
           }
         }
@@ -250,7 +293,7 @@ const GlassSlipperApp = () => {
         // Position field - validate it's a job title
         else if (lowerHeader.includes('position') || lowerHeader.includes('title') || lowerHeader.includes('job')) {
           // STAGE 1 FIX: Validate position field contains job title, not company name
-          if (value && this.looksLikeJobTitle(value)) {
+          if (value && looksLikeJobTitle(value)) {
             contact.position = value;
           }
         }
@@ -469,13 +512,13 @@ const GlassSlipperApp = () => {
           }
 
           // STAGE 1 FIX: Validate that enriched company isn't a personal name
-          if (this.looksLikePersonalName(updatedContact.company)) {
+          if (looksLikePersonalName(updatedContact.company)) {
             console.warn(`⚠️ WARNING: Company field contains personal name for ${contact.name}, preserving original`);
             updatedContact.company = contact.company;
           }
 
           // STAGE 1 FIX: Validate that enriched position is actually a job title
-          if (updatedContact.position && !this.looksLikeJobTitle(updatedContact.position) && this.looksLikePersonalName(updatedContact.position)) {
+          if (updatedContact.position && !looksLikeJobTitle(updatedContact.position) && looksLikePersonalName(updatedContact.position)) {
             console.warn(`⚠️ WARNING: Position field contains company name for ${contact.name}, preserving original`);
             updatedContact.position = contact.position;
           }
