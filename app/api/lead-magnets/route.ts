@@ -92,7 +92,7 @@ function createLeadMagnetPrompt(
 ): string {
   
   // Analyze contact data for insights
-  const industries = [...new Set(contacts.map(c => c.industry).filter(Boolean))];
+  const industries = Array.from(new Set(contacts.map(c => c.industry).filter(Boolean))) as string[];
   const idealClients = contacts.filter(c => c.category === 'Ideal Client');
   const referralPartners = contacts.filter(c => c.category === 'Referral Partners');
 
