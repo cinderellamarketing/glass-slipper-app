@@ -135,7 +135,6 @@ const GlassSlipperApp = () => {
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [showLeadMagnetModal, setShowLeadMagnetModal] = useState<boolean>(false);
   const [selectedLeadMagnet, setSelectedLeadMagnet] = useState<LeadMagnet | null>(null);
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Business state
@@ -196,15 +195,23 @@ const GlassSlipperApp = () => {
     { view: 'contacts', label: 'Contacts', icon: Users },
     { view: 'strategy', label: 'Strategy', icon: Target },
     { view: 'leadmagnets', label: 'Lead Magnets', icon: Zap },
-    { view: 'daily', label: 'Daily Tasks', icon: CheckCircle }
+    { view: 'daily', label: 'Daily Tasks', icon: CheckCircle },
+    { view: 'settings', label: 'Settings', icon: Settings }
   ];
 
   // STAGE 1 FIX: Helper functions for field validation (defined first)
   const looksLikePersonalName = (text: string): boolean => {
     if (!text || typeof text !== 'string') return false;
+    
+    // Add whitelist of known company names that aren't personal names
+    const knownCompanyNames = ['franklyn', 'microsoft', 'google', 'apple', 'amazon', 'facebook', 'netflix'];
+    if (knownCompanyNames.includes(text.toLowerCase())) {
+      return false;
+    }
+    
     const personalNamePatterns = [
       /^[A-Z][a-z]+ [A-Z][a-z]+$/,  // "John Smith" format
-      /^[A-Z][a-z]+$/,               // Single name like "Smith"
+      /^[A-Z][a-z]+ [A-Z]\.$/,      // "John S." format
     ];
     return personalNamePatterns.some((pattern: RegExp) => pattern.test(text.trim()));
   };
@@ -240,6 +247,33 @@ const GlassSlipperApp = () => {
     }
     // If enriched position is valid, use it; otherwise keep original
     return enrichedPosition && enrichedPosition !== 'Not found' ? enrichedPosition : originalPosition;
+  };
+
+  // Auto-categorization based on business settings
+  const getAutomaticCategory = (contact: Contact, userBusinessType: string): string => {
+    // Map business types to likely contact categories
+    const businessTypeMapping: { [key: string]: { [key: string]: string } } = {
+      'B2B SaaS': {
+        'technology': 'Ideal Client',
+        'software': 'Ideal Client', 
+        'digital': 'Ideal Client',
+        'financial services': 'Champions', // Like wealth managers who serve tech companies
+        'consulting': 'Referral Partners'
+      },
+      'Consulting': {
+        'consulting': 'Competitors',
+        'business': 'Ideal Client',
+        'finance': 'Champions'
+      }
+    };
+    
+    const mapping = businessTypeMapping[userBusinessType];
+    if (mapping && contact.industry) {
+      const industryKey = contact.industry.toLowerCase();
+      return mapping[industryKey] || 'Uncategorised';
+    }
+    
+    return 'Uncategorised';
   };
 
   // STAGE 1 FIX: Enhanced contact parsing with better field validation
@@ -311,6 +345,9 @@ const GlassSlipperApp = () => {
         // Ensure we have minimum required data
         if (!contact.company) contact.company = 'Not specified';
         if (!contact.position) contact.position = 'Not specified';
+        
+        // Apply automatic categorization based on business settings
+        contact.category = getAutomaticCategory(contact, user.businessType);
         
         contacts.push(contact);
         console.log('✅ PARSING: Valid contact added:', contact.name);
@@ -484,6 +521,9 @@ const GlassSlipperApp = () => {
             position: validateEnrichedPosition(enrichedData.position, contact.position)
           };
 
+          // Apply automatic categorization based on enriched industry data
+          updatedContact.category = getAutomaticCategory(updatedContact, user.businessType);
+
           // STAGE 1 FIX: Final validation check
           if (updatedContact.email !== contact.email) {
             console.error(`🚨 CRITICAL: Email mismatch detected for ${contact.name}!`);
@@ -637,7 +677,6 @@ This strategy aligns with current best practices in professional services referr
   // Handle user settings update
   const updateUserSettings = (newSettings: Partial<User>) => {
     setUser(prev => ({ ...prev, ...newSettings }));
-    setShowSettingsModal(false);
     setSuccessMessage('Settings updated successfully!');
     setShowSuccessModal(true);
 
@@ -687,7 +726,6 @@ This strategy aligns with current best practices in professional services referr
     setShowLoadingModal(false);
     setShowSuccessModal(false);
     setShowLeadMagnetModal(false);
-    setShowSettingsModal(false);
     setSelectedContact(null);
     setSelectedLeadMagnet(null);
   };
@@ -957,13 +995,6 @@ This strategy aligns with current best practices in professional services referr
             {/* Mobile Menu & User Actions */}
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => setShowSettingsModal(true)}
-                className="text-white hover:text-yellow-400 transition-colors"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-              
-              <button
                 onClick={handleLogout}
                 className="text-white hover:text-yellow-400 transition-colors"
               >
@@ -1108,12 +1139,6 @@ This strategy aligns with current best practices in professional services referr
               <h1 className="text-2xl font-bold text-white">Contact Management</h1>
               <div className="flex space-x-3">
                 <button
-                  onClick={loadSampleContacts}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Load Sample Data
-                </button>
-                <button
                   onClick={() => fileInputRef.current?.click()}
                   className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center space-x-2"
                 >
@@ -1241,21 +1266,13 @@ This strategy aligns with current best practices in professional services referr
                 <div className="text-center py-12">
                   <Users className="w-12 h-12 text-white text-opacity-40 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">No contacts found</h3>
-                  <p className="text-white text-opacity-60 mb-6">Upload a CSV file or load sample data to get started</p>
-                  <div className="space-x-3">
-                    <button
-                      onClick={loadSampleContacts}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Load Sample Data
-                    </button>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
-                    >
-                      Upload CSV File
-                    </button>
-                  </div>
+                  <p className="text-white text-opacity-60 mb-6">Upload a CSV file to get started</p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
+                  >
+                    Upload CSV File
+                  </button>
                 </div>
               )}
             </div>
@@ -1570,6 +1587,70 @@ This strategy aligns with current best practices in professional services referr
             </div>
           </div>
         )}
+
+        {/* Settings View */}
+        {currentView === 'settings' && (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold text-white">Business Settings</h1>
+            
+            <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 max-w-md">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Business Type</label>
+                  <input
+                    type="text"
+                    value={user.businessType}
+                    onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-white placeholder-opacity-60 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Target Market</label>
+                  <input
+                    type="text"
+                    value={user.targetMarket}
+                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-white placeholder-opacity-60 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Writing Style</label>
+                  <select
+                    value={user.writingStyle}
+                    onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  >
+                    <option value="Professional yet conversational">Professional yet conversational</option>
+                    <option value="Formal and authoritative">Formal and authoritative</option>
+                    <option value="Casual and friendly">Casual and friendly</option>
+                    <option value="Technical and detailed">Technical and detailed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Referral Partners</label>
+                  <input
+                    type="text"
+                    value={user.referralPartners}
+                    onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-white placeholder-opacity-60 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => updateUserSettings(user)}
+                  className="flex-1 px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Contact Details Modal */}
@@ -1605,6 +1686,11 @@ This strategy aligns with current best practices in professional services referr
               <div className="space-y-3">
                 <div className="flex items-center space-x-3 text-white">
                   <Mail className="w-4 h-4 text-yellow-400" />
+                  <span>{selectedContact.email}</span>
+                </div>
+                
+                <div className="flex items-center space-x-3 text-white">
+                  <Briefcase className="w-4 h-4 text-yellow-400" />
                   <span>{selectedContact.position || 'Wealth Manager'}</span>
                 </div>
                 
