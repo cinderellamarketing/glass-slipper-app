@@ -321,26 +321,6 @@ const GlassSlipperApp = () => {
     return contacts;
   }, []);
 
-  // STAGE 1 FIX: Helper functions for field validation
-  const looksLikePersonalName = (text: string): boolean => {
-    const personalNamePatterns = [
-      /^[A-Z][a-z]+ [A-Z][a-z]+$/,  // "John Smith" format
-      /^[A-Z][a-z]+$/,               // Single name like "Smith"
-    ];
-    return personalNamePatterns.some(pattern => pattern.test(text.trim()));
-  };
-
-  const looksLikeJobTitle = (text: string): boolean => {
-    const jobTitleKeywords = [
-      'manager', 'director', 'executive', 'analyst', 'consultant', 'advisor',
-      'specialist', 'coordinator', 'assistant', 'officer', 'representative',
-      'administrator', 'supervisor', 'lead', 'head', 'chief', 'senior',
-      'junior', 'associate', 'partner', 'founder', 'owner', 'president'
-    ];
-    const lowerText = text.toLowerCase();
-    return jobTitleKeywords.some(keyword => lowerText.includes(keyword));
-  };
-
   // Handle CSV upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -439,8 +419,8 @@ const GlassSlipperApp = () => {
           // Preserve original email at all costs
           originalEmail: contact.email,
           // Validate company/position fields aren't swapped
-          company: this.looksLikePersonalName(contact.company) ? 'Not specified' : contact.company,
-          position: !this.looksLikeJobTitle(contact.position) ? 'Not specified' : contact.position
+          company: looksLikePersonalName(contact.company) ? 'Not specified' : contact.company,
+          position: !looksLikeJobTitle(contact.position) ? 'Not specified' : contact.position
         };
         
         console.log('🔍 ENRICHMENT: Validated contact data:', {
@@ -500,8 +480,8 @@ const GlassSlipperApp = () => {
             website: enrichedData.website || 'Not found',
             industry: enrichedData.industry || 'Not found',
             // STAGE 1 FIX: Only update company/position if enriched data is logically valid
-            company: this.validateEnrichedCompany(enrichedData.company, contact.company),
-            position: this.validateEnrichedPosition(enrichedData.position, contact.position)
+            company: validateEnrichedCompany(enrichedData.company, contact.company),
+            position: validateEnrichedPosition(enrichedData.position, contact.position)
           };
 
           // STAGE 1 FIX: Final validation check
@@ -569,27 +549,6 @@ const GlassSlipperApp = () => {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       alert(`Enrichment failed: ${errorMessage}. Please check the console for more details.`);
     }
-  };
-
-  // STAGE 1 FIX: Helper functions for enriched data validation
-  const validateEnrichedCompany = (enrichedCompany: string, originalCompany: string): string => {
-    // If enriched company looks like a personal name, keep original
-    if (enrichedCompany && this.looksLikePersonalName(enrichedCompany)) {
-      console.warn(`⚠️ Enriched company "${enrichedCompany}" looks like personal name, keeping original: "${originalCompany}"`);
-      return originalCompany;
-    }
-    // If enriched company is valid, use it; otherwise keep original
-    return enrichedCompany && enrichedCompany !== 'Not found' ? enrichedCompany : originalCompany;
-  };
-
-  const validateEnrichedPosition = (enrichedPosition: string, originalPosition: string): string => {
-    // If enriched position looks like a company name, keep original
-    if (enrichedPosition && !this.looksLikeJobTitle(enrichedPosition) && enrichedPosition.length > 3) {
-      console.warn(`⚠️ Enriched position "${enrichedPosition}" doesn't look like job title, keeping original: "${originalPosition}"`);
-      return originalPosition;
-    }
-    // If enriched position is valid, use it; otherwise keep original
-    return enrichedPosition && enrichedPosition !== 'Not found' ? enrichedPosition : originalPosition;
   };
 
   // Delete contact
