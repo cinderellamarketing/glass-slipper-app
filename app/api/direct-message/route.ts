@@ -93,10 +93,10 @@ Do not include quotes or additional text - just the problem statement.
     const extractedProblem = problemResponse.trim();
     console.log('✅ DIRECT MESSAGE API: Extracted problem:', extractedProblem);
 
-    // Step 2: Check for existing personalized lead magnet for this contact
-    console.log('🔍 DIRECT MESSAGE API: Checking for existing personalized lead magnet...');
+    // Step 2: Check for existing personalised lead magnet for this contact
+    console.log('🔍 DIRECT MESSAGE API: Checking for existing personalised lead magnet...');
     let relevantLeadMagnet = existingLeadMagnets.find(magnet => 
-      magnet.type === 'personalized' && 
+      magnet.type === 'personalised' && 
       magnet.title.includes(contact.name)
     );
 
@@ -105,7 +105,7 @@ Do not include quotes or additional text - just the problem statement.
       console.log('🔍 DIRECT MESSAGE API: No existing lead magnet found, generating new one...');
       
       const leadMagnetGenerationPrompt = `
-Generate a personalized lead magnet for this specific contact that addresses their likely challenges.
+Generate a personalised lead magnet for this specific contact that addresses their likely challenges.
 
 CONTACT DETAILS:
 - Name: ${contact.name}
@@ -181,7 +181,7 @@ Respond with ONLY this JSON format:
 
 ${extractedProblem}
 
-I created a ${relevantLeadMagnet.type} "${relevantLeadMagnet.title}" that helps solve this. Is it worth sending it over?
+I created a ${relevantLeadMagnet?.type || 'guide'} "${relevantLeadMagnet?.title || 'Business Solutions Guide'}" that helps solve this. Is it worth sending it over?
 
 ${user.name}`;
 
@@ -190,7 +190,7 @@ ${user.name}`;
     return NextResponse.json({
       success: true,
       message: directMessage,
-      leadMagnet: existingLeadMagnets.find(magnet => magnet.id === relevantLeadMagnet.id) ? null : relevantLeadMagnet // Only return if it's new
+      leadMagnet: relevantLeadMagnet && existingLeadMagnets.find(magnet => magnet.id === relevantLeadMagnet!.id) ? null : relevantLeadMagnet // Only return if it's new
     });
 
   } catch (error) {
