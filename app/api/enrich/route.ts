@@ -41,65 +41,155 @@ interface WebsiteCandidate {
 export async function POST(request: NextRequest) {
   try {
     console.log('🔍 API: Enrichment request received');
+    console.log('🔍 API: Request headers:', Object.fromEntries(request.headers.entries()));
+    console.log('🔍 API: Request method:', request.method);
+    console.log('🔍 API: Request URL:', request.url);
     
     const { contacts } = await request.json();
     
+    console.log('🔍 API: Request body parsed successfully');
+    console.log('🔍 API: Contacts received:', {
+      isArray: Array.isArray(contacts),
+      count: contacts ? contacts.length : 0,
+      hasContacts: !!contacts
+    });
+    
     if (!contacts || !Array.isArray(contacts)) {
-      console.log('❌ API: Invalid contacts data');
+      console.log('❌ API: Invalid contacts data - returning 400');
       return NextResponse.json({ 
         error: 'contacts array is required' 
       }, { status: 400 });
     }
 
     console.log(`🔍 API: Processing ${contacts.length} contacts`);
+    
+    // Log first contact for structure verification
+    if (contacts.length > 0) {
+      console.log('🔍 API: Sample contact structure:', {
+        id: contacts[0].id,
+        name: contacts[0].name,
+        email: contacts[0].email,
+        position: contacts[0].position,
+        company: contacts[0].company,
+        hasLastName: !!contacts[0].lastName,
+        isEnriched: contacts[0].isEnriched
+      });
+    }
+    
+    // Log environment check
+    console.log('🔍 API: Environment check:', {
+      hasSerperKey: !!process.env.SERPER_API_KEY,
+      hasClaudeKey: !!process.env.CLAUDE_API_KEY,
+      serperKeyLength: process.env.SERPER_API_KEY?.length || 0,
+      claudeKeyLength: process.env.CLAUDE_API_KEY?.length || 0
+    });
+    
     const enrichedContacts: Contact[] = [];
 
     for (const contact of contacts) {
       try {
-        console.log(`🔍 API: Processing contact: ${contact.name} at ${contact.company}`);
+        console.log(`🔍 API: ===== Processing contact: ${contact.name} =====`);
+        console.log(`🔍 API: Contact details:`, {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          position: contact.position,
+          company: contact.company,
+          category: contact.category,
+          isEnriched: contact.isEnriched
+        });
         
         // Extract lastName from name
         const nameParts = contact.name.split(' ');
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-        console.log(`🔍 API: Extracted lastName: ${lastName}`);
+        console.log(`🔍 API: Name parsing:`, {
+          fullName: contact.name,
+          nameParts: nameParts,
+          extractedLastName: lastName
+        });
         
         // STAGE 3: Enhanced search query for better website detection
         const searchQuery = `"${contact.company}" official website contact information business phone`;
-        console.log('🔍 API: Company search query:', searchQuery);
+        console.log('🔍 API: Search query prepared:', searchQuery);
 
         // Perform web search
+        console.log('🔍 API: Starting web search...');
+        const searchStartTime = Date.now();
         const searchResults = await performWebSearch(searchQuery);
+        const searchDuration = Date.now() - searchStartTime;
+        
         const resultCount = searchResults.organic ? searchResults.organic.length : 0;
-        console.log('🔍 API: Search results received:', { resultCount });
+        console.log('🔍 API: Web search completed:', { 
+          resultCount,
+          duration: `${searchDuration}ms`,
+          hasOrganic: !!searchResults.organic
+        });
 
         // Log first result for debugging
         if (searchResults.organic && searchResults.organic.length > 0) {
           const firstResult = searchResults.organic[0];
-          console.log('🔍 API: First company result:', {
+          console.log('🔍 API: First search result analysis:', {
             title: firstResult.title || 'No title',
             link: firstResult.link || 'No link',
-            snippet: (firstResult.snippet || 'No snippet').substring(0, 100) + '...'
+            domain: firstResult.link ? new URL(firstResult.link).hostname : 'No domain',
+            snippetLength: (firstResult.snippet || '').length,
+            hasAllFields: !!(firstResult.title && firstResult.link && firstResult.snippet)
           });
         } else {
-          console.log('⚠️ API: No company search results found');
+          console.log('⚠️ API: No search results found - enrichment will use fallbacks');
         }
 
         // STAGE 3: Extract potential websites from search results
+        console.log('🔍 API: Starting website extraction...');
         const extractedWebsites = extractWebsitesFromSearchResults(searchResults, contact.company);
-        console.log('🔍 API: Extracted websites:', extractedWebsites);
+        console.log('🔍 API: Website extraction completed:', {
+          extractedCount: extractedWebsites.length,
+          websites: extractedWebsites
+        });
 
         // STAGE 3: Enhanced Claude prompt with website detection instructions
+        console.log('🔍 API: Preparing Claude analysis prompt...');
         const analysisPrompt = createAnalysisPrompt(contact.company, searchResults, extractedWebsites);
+        console.log('🔍 API: Claude prompt prepared, length:', analysisPrompt.length);
         
-        console.log('🔍 API: Calling Claude for analysis...');
+        console.log('🔍 API: Starting Claude analysis...');
+        const claudeStartTime = Date.now();
         const enrichmentData = await performClaudeAnalysis(analysisPrompt);
-        console.log('🔍 API: Claude raw response:', enrichmentData.substring(0, 200) + '...');
+        const claudeDuration = Date.now() - claudeStartTime;
+        
+        console.log('🔍 API: Claude analysis completed:', {
+          duration: `${claudeDuration}ms`,
+          responseLength: enrichmentData.length,
+          preview: enrichmentData.substring(0, 100) + '...'
+        });
         
         // Parse Claude's response with error handling
+        console.log('🔍 API: Parsing Claude response...');
         const parsedData = parseClaudeResponse(enrichmentData, extractedWebsites, contact.name);
+        console.log('🔍 API: Claude response parsed:', {
+          website: parsedData.website,
+          phone: parsedData.phone,
+          industry: parsedData.industry
+        });
 
         // STAGE 3: Post-process website URL
+        console.log('🔍 API: Validating and improving website URL...');
         const finalWebsite = validateAndImproveWebsiteURL(parsedData.website, extractedWebsites, contact.company);
+        console.log('🔍 API: Website validation completed:', {
+          original: parsedData.website,
+          final: finalWebsite,
+          wasImproved: finalWebsite !== parsedData.website
+        });
+
+        // INDUSTRY FIX: Analyze contact position if company search didn't find industry
+        console.log('🔍 API: Analyzing industry from position...');
+        const finalIndustry = analyzeIndustryFromPosition(parsedData.industry, contact.position, contact.company);
+        console.log('🔍 API: Industry analysis completed:', {
+          original: parsedData.industry,
+          final: finalIndustry,
+          wasAnalyzed: finalIndustry !== parsedData.industry,
+          analysisSource: finalIndustry !== parsedData.industry ? 'position-analysis' : 'company-search'
+        });
 
         // STAGE 2: Create enriched contact with explicit data preservation
         const enrichedContact: Contact = {
@@ -115,7 +205,7 @@ export async function POST(request: NextRequest) {
           isEnriched: true,
           phone: parsedData.phone || 'Not found',
           website: finalWebsite,
-          industry: parsedData.industry || 'Not found'
+          industry: finalIndustry
         };
 
         console.log(`✅ API: Successfully enriched ${contact.name} with data:`, {
@@ -123,6 +213,7 @@ export async function POST(request: NextRequest) {
           phone: enrichedContact.phone,
           website: enrichedContact.website,
           industry: enrichedContact.industry,
+          industrySource: finalIndustry !== parsedData.industry ? 'position-analysis' : 'company-search',
           originalEmailPreserved: enrichedContact.email === contact.email
         });
 
@@ -150,7 +241,7 @@ export async function POST(request: NextRequest) {
           isEnriched: true,
           phone: 'Search failed',
           website: 'Search failed',
-          industry: 'Search failed'
+          industry: analyzeIndustryFromPosition('Search failed', contact.position, contact.company)
         };
 
         enrichedContacts.push(failedContact);
@@ -171,6 +262,134 @@ export async function POST(request: NextRequest) {
       details: errorMessage
     }, { status: 500 });
   }
+}
+
+// INDUSTRY FIX: Analyze industry from contact position and company
+function analyzeIndustryFromPosition(currentIndustry: string, position: string, company: string): string {
+  // If we already have a valid industry from company search, use it
+  if (currentIndustry && currentIndustry !== 'Not found' && currentIndustry !== 'Search failed' && currentIndustry !== 'Parsing failed') {
+    return currentIndustry;
+  }
+
+  console.log('🔍 INDUSTRY: Analyzing position for industry:', { position, company });
+
+  const pos = position.toLowerCase();
+  const comp = company.toLowerCase();
+
+  // Financial Services
+  if (pos.includes('wealth manager') || pos.includes('financial advisor') || pos.includes('investment') || 
+      pos.includes('portfolio manager') || pos.includes('private banker') || pos.includes('fund manager') ||
+      comp.includes('wealth') || comp.includes('investment') || comp.includes('financial') || comp.includes('asset management')) {
+    console.log('✅ INDUSTRY: Mapped to Financial Services');
+    return 'Financial Services';
+  }
+
+  // Technology
+  if (pos.includes('developer') || pos.includes('engineer') || pos.includes('programmer') || pos.includes('tech') ||
+      pos.includes('software') || pos.includes('data scientist') || pos.includes('devops') || pos.includes('architect') ||
+      comp.includes('tech') || comp.includes('software') || comp.includes('digital') || comp.includes('data')) {
+    console.log('✅ INDUSTRY: Mapped to Technology');
+    return 'Technology';
+  }
+
+  // Marketing & Advertising
+  if (pos.includes('marketing') || pos.includes('brand') || pos.includes('advertising') || pos.includes('social media') ||
+      pos.includes('content') || pos.includes('digital marketing') || pos.includes('seo') || pos.includes('ppc') ||
+      comp.includes('marketing') || comp.includes('advertising') || comp.includes('agency') || comp.includes('creative')) {
+    console.log('✅ INDUSTRY: Mapped to Marketing & Advertising');
+    return 'Marketing & Advertising';
+  }
+
+  // Healthcare
+  if (pos.includes('doctor') || pos.includes('nurse') || pos.includes('physician') || pos.includes('medical') ||
+      pos.includes('healthcare') || pos.includes('clinical') || pos.includes('pharma') || pos.includes('therapist') ||
+      comp.includes('health') || comp.includes('medical') || comp.includes('hospital') || comp.includes('clinic')) {
+    console.log('✅ INDUSTRY: Mapped to Healthcare');
+    return 'Healthcare';
+  }
+
+  // Legal
+  if (pos.includes('lawyer') || pos.includes('solicitor') || pos.includes('legal') || pos.includes('attorney') ||
+      pos.includes('barrister') || pos.includes('counsel') || pos.includes('paralegal') ||
+      comp.includes('law') || comp.includes('legal') || comp.includes('solicitors')) {
+    console.log('✅ INDUSTRY: Mapped to Legal Services');
+    return 'Legal Services';
+  }
+
+  // Education
+  if (pos.includes('teacher') || pos.includes('professor') || pos.includes('lecturer') || pos.includes('educator') ||
+      pos.includes('academic') || pos.includes('instructor') || pos.includes('tutor') ||
+      comp.includes('school') || comp.includes('university') || comp.includes('education') || comp.includes('college')) {
+    console.log('✅ INDUSTRY: Mapped to Education');
+    return 'Education';
+  }
+
+  // Real Estate
+  if (pos.includes('estate agent') || pos.includes('property') || pos.includes('real estate') || pos.includes('surveyor') ||
+      pos.includes('valuer') || pos.includes('lettings') || pos.includes('property manager') ||
+      comp.includes('property') || comp.includes('estate') || comp.includes('real estate') || comp.includes('lettings')) {
+    console.log('✅ INDUSTRY: Mapped to Real Estate');
+    return 'Real Estate';
+  }
+
+  // Consulting
+  if (pos.includes('consultant') || pos.includes('advisor') || pos.includes('strategist') || pos.includes('analyst') ||
+      pos.includes('business development') || pos.includes('transformation') ||
+      comp.includes('consulting') || comp.includes('advisory') || comp.includes('strategy')) {
+    console.log('✅ INDUSTRY: Mapped to Consulting');
+    return 'Consulting';
+  }
+
+  // Manufacturing
+  if (pos.includes('manufacturing') || pos.includes('production') || pos.includes('operations') || pos.includes('supply chain') ||
+      pos.includes('quality') || pos.includes('plant') || pos.includes('factory') ||
+      comp.includes('manufacturing') || comp.includes('industrial') || comp.includes('automotive') || comp.includes('aerospace')) {
+    console.log('✅ INDUSTRY: Mapped to Manufacturing');
+    return 'Manufacturing';
+  }
+
+  // Retail
+  if (pos.includes('retail') || pos.includes('sales assistant') || pos.includes('store') || pos.includes('merchandising') ||
+      pos.includes('buyer') || pos.includes('category') || pos.includes('visual merchandiser') ||
+      comp.includes('retail') || comp.includes('store') || comp.includes('shop') || comp.includes('fashion')) {
+    console.log('✅ INDUSTRY: Mapped to Retail');
+    return 'Retail';
+  }
+
+  // Construction
+  if (pos.includes('construction') || pos.includes('builder') || pos.includes('contractor') || pos.includes('architect') ||
+      pos.includes('civil engineer') || pos.includes('quantity surveyor') || pos.includes('project manager') ||
+      comp.includes('construction') || comp.includes('building') || comp.includes('contractors') || comp.includes('infrastructure')) {
+    console.log('✅ INDUSTRY: Mapped to Construction');
+    return 'Construction';
+  }
+
+  // Media & Entertainment
+  if (pos.includes('journalist') || pos.includes('editor') || pos.includes('producer') || pos.includes('director') ||
+      pos.includes('media') || pos.includes('broadcasting') || pos.includes('film') || pos.includes('television') ||
+      comp.includes('media') || comp.includes('broadcasting') || comp.includes('entertainment') || comp.includes('production')) {
+    console.log('✅ INDUSTRY: Mapped to Media & Entertainment');
+    return 'Media & Entertainment';
+  }
+
+  // Generic business roles - try to infer from company name
+  if (pos.includes('manager') || pos.includes('director') || pos.includes('executive') || pos.includes('officer')) {
+    if (comp.includes('bank') || comp.includes('finance') || comp.includes('credit')) {
+      console.log('✅ INDUSTRY: Manager at financial company - mapped to Financial Services');
+      return 'Financial Services';
+    }
+    if (comp.includes('tech') || comp.includes('software') || comp.includes('digital')) {
+      console.log('✅ INDUSTRY: Manager at tech company - mapped to Technology');
+      return 'Technology';
+    }
+    if (comp.includes('marketing') || comp.includes('agency') || comp.includes('creative')) {
+      console.log('✅ INDUSTRY: Manager at marketing company - mapped to Marketing & Advertising');
+      return 'Marketing & Advertising';
+    }
+  }
+
+  console.log('⚠️ INDUSTRY: Could not determine industry from position or company');
+  return currentIndustry || 'Not found';
 }
 
 // STAGE 3: Extract potential websites from search results
@@ -281,8 +500,10 @@ ${websitesJson}
 
 INSTRUCTIONS:
 1. Find the official company website URL (prioritize company's main domain)
-2. Look for business phone numbers (UK format preferred)
+2. Look for business phone numbers (UK format preferred)  
 3. Determine the industry/business type from company description
+   - Look for business activities, services offered, sector descriptions
+   - Common industries: Financial Services, Technology, Healthcare, Legal Services, Consulting, etc.
 
 WEBSITE SELECTION PRIORITY:
 - Official company domain (e.g., ${companyName.toLowerCase().replace(/\s+/g, '')}.com, ${companyName.toLowerCase().replace(/\s+/g, '')}.co.uk)
@@ -297,7 +518,7 @@ Return ONLY this JSON format (no markdown, no code blocks):
   "industry": "Specific industry/business type or 'Not found'"
 }
 
-Focus on finding the PRIMARY official company website. If multiple websites exist, choose the most official/primary one.`;
+Focus on finding the PRIMARY official company website and the main business sector/industry the company operates in.`;
 }
 
 // Parse Claude's response with fallback handling
