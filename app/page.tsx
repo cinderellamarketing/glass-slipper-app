@@ -398,7 +398,15 @@ const GlassSlipperApp = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ contacts }),
+        body: JSON.stringify({ 
+          contacts,
+          userProfile: {
+            targetMarket: user.targetMarket,
+            referralPartners: user.referralPartners,
+            businessType: user.businessType,
+            company: user.company
+          }
+        }),
       });
 
       if (!response.ok) {
@@ -425,13 +433,12 @@ const GlassSlipperApp = () => {
               phone: enrichedData.phone || 'Not found',
               website: enrichedData.website || 'Not found',
               industry: enrichedData.industry || 'Not found',
+              // Use Claude's categorisation decision
+              category: enrichedData.category || contact.category,
               // STAGE 1 FIX: Only update company/position if enriched data is logically valid
               company: validateEnrichedCompany(enrichedData.company, contact.company),
               position: validateEnrichedPosition(enrichedData.position, contact.position)
             };
-
-            // Apply automatic categorization based on enriched industry data
-            updatedContact.category = getAutomaticCategory(updatedContact, user.businessType);
 
             // STAGE 1 FIX: Final validation check
             if (updatedContact.email !== contact.email) {

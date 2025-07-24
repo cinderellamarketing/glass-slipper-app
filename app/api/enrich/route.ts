@@ -1,10 +1,6 @@
-// STAGE 1 CORE DATA PARSING FIX: Enhanced Contact Enrichment API
-// Fixed data parsing, field mapping, and JSON response validation
-// This addresses the primary issues where company/position fields were being swapped
+import { NextResponse } from 'next/server';
 
-import { NextRequest, NextResponse } from 'next/server';
-
-// Enhanced Contact interface with validation
+// TypeScript interfaces
 interface Contact {
   id: number;
   name: string;
@@ -17,10 +13,15 @@ interface Contact {
   website?: string;
   lastName?: string;
   industry?: string;
-  originalEmail?: string; // STAGE 1 FIX: Preserve original email
 }
 
-// STAGE 1 FIX: Enhanced search response interfaces
+interface UserProfile {
+  targetMarket: string;
+  referralPartners: string;
+  businessType: string;
+  company: string;
+}
+
 interface SearchResult {
   title?: string;
   link?: string;
@@ -34,42 +35,45 @@ interface SearchResponse {
 interface WebsiteCandidate {
   url: string;
   score: number;
-  domain: string;
 }
 
-// STAGE 1 FIX: Enhanced parsed enrichment data structure
-interface ParsedEnrichmentData {
-  phone: string;
-  website: string;
-  industry: string;
-  company: string;      // STAGE 1 FIX: Validate company field separately
-  position: string;     // STAGE 1 FIX: Validate position field separately
-  lastName: string;
-}
-
-export async function POST(request: NextRequest) {
+// Main API endpoint
+export async function POST(request: Request) {
   try {
-    console.log('🚀 API: Enrichment process started');
+    console.log('🔍 API: Starting enrichment process...');
     
-    const { contacts } = await request.json();
+    const { contacts, userProfile } = await request.json();
     
     if (!contacts || !Array.isArray(contacts)) {
-      console.error('❌ API: Invalid request - contacts array missing');
-      return NextResponse.json({
-        error: 'Invalid request format',
-        details: 'Contacts array is required'
+      console.log('❌ API: Invalid contacts data provided');
+      return NextResponse.json({ 
+        success: false,
+        error: 'Invalid contacts data' 
       }, { status: 400 });
     }
 
-    console.log(`🔍 API: Processing ${contacts.length} contacts for enrichment`);
+    if (!userProfile) {
+      console.log('❌ API: User profile required for categorisation');
+      return NextResponse.json({ 
+        success: false,
+        error: 'User profile required for categorisation' 
+      }, { status: 400 });
+    }
+
+    console.log(`🔍 API: Processing ${contacts.length} contacts with user profile:`, {
+      targetMarket: userProfile.targetMarket,
+      businessType: userProfile.businessType,
+      referralPartners: userProfile.referralPartners
+    });
+
     const enrichedContacts: Contact[] = [];
 
     for (const contact of contacts) {
       try {
-        console.log(`🔍 API: Starting enrichment for ${contact.name}`);
+        console.log(`🔍 API: Starting enrichment for ${contact.name} at ${contact.company}`);
         
-        // STAGE 1 FIX: Enhanced name parsing with validation
-        const nameParts = contact.name.trim().split(' ').filter((part: string) => part.length > 0);
+        // Extract last name from full name
+        const nameParts = contact.name.split(' ');
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
         console.log(`🔍 API: Name parsing:`, {
           fullName: contact.name,
@@ -77,8 +81,8 @@ export async function POST(request: NextRequest) {
           extractedLastName: lastName
         });
         
-        // STAGE 1 FIX: Enhanced search query with better context
-        const searchQuery = `"${contact.company}" "${contact.position}" official website business phone contact information`;
+        // STAGE 3: Enhanced search query for better website detection
+        const searchQuery = `"${contact.company}" official website contact information business phone`;
         console.log('🔍 API: Search query prepared:', searchQuery);
 
         // Perform web search
@@ -108,7 +112,7 @@ export async function POST(request: NextRequest) {
           console.log('⚠️ API: No search results found - enrichment will use fallbacks');
         }
 
-        // Extract potential websites from search results
+        // STAGE 3: Extract potential websites from search results
         console.log('🔍 API: Starting website extraction...');
         const extractedWebsites = extractWebsitesFromSearchResults(searchResults, contact.company);
         console.log('🔍 API: Website extraction completed:', {
@@ -116,9 +120,9 @@ export async function POST(request: NextRequest) {
           websites: extractedWebsites
         });
 
-        // STAGE 1 FIX: Enhanced Claude prompt with explicit field mapping instructions
+        // STAGE 3: Enhanced Claude prompt with website detection instructions
         console.log('🔍 API: Preparing Claude analysis prompt...');
-        const analysisPrompt = createEnhancedAnalysisPrompt(contact, searchResults, extractedWebsites);
+        const analysisPrompt = createAnalysisPrompt(contact.company, searchResults, extractedWebsites, userProfile);
         console.log('🔍 API: Claude prompt prepared, length:', analysisPrompt.length);
         
         console.log('🔍 API: Starting Claude analysis...');
@@ -129,22 +133,21 @@ export async function POST(request: NextRequest) {
         console.log('🔍 API: Claude analysis completed:', {
           duration: `${claudeDuration}ms`,
           responseLength: enrichmentData.length,
-          preview: enrichmentData.substring(0, 200) + '...'
+          preview: enrichmentData.substring(0, 100) + '...'
         });
         
-        // STAGE 1 FIX: Enhanced response parsing with field validation
+        // Parse Claude's response with error handling
         console.log('🔍 API: Parsing Claude response...');
-        const parsedData = parseClaudeResponseWithValidation(enrichmentData, extractedWebsites, contact);
-        console.log('🔍 API: Claude response parsed and validated:', {
-          company: parsedData.company,
-          position: parsedData.position,
+        const parsedData = parseClaudeResponse(enrichmentData, extractedWebsites, contact.name);
+        console.log('🔍 API: Claude response parsed:', {
           website: parsedData.website,
           phone: parsedData.phone,
           industry: parsedData.industry,
-          lastName: parsedData.lastName
+          category: parsedData.category,
+          categoryReason: parsedData.categoryReason
         });
 
-        // Post-process website URL
+        // STAGE 3: Post-process website URL
         console.log('🔍 API: Validating and improving website URL...');
         const finalWebsite = validateAndImproveWebsiteURL(parsedData.website, extractedWebsites, contact.company);
         console.log('🔍 API: Website validation completed:', {
@@ -153,46 +156,42 @@ export async function POST(request: NextRequest) {
           wasImproved: finalWebsite !== parsedData.website
         });
 
-        // STAGE 1 FIX: Enhanced industry analysis with position-based fallback
-        console.log('🔍 API: Analyzing industry from multiple sources...');
-        const finalIndustry = analyzeComprehensiveIndustry(parsedData.industry, contact.position, contact.company);
+        // INDUSTRY FIX: Analyze contact position if company search didn't find industry
+        console.log('🔍 API: Analyzing industry from position...');
+        const finalIndustry = analyzeIndustryFromPosition(parsedData.industry, contact.position, contact.company);
         console.log('🔍 API: Industry analysis completed:', {
-          searchResult: parsedData.industry,
+          original: parsedData.industry,
           final: finalIndustry,
-          wasAnalyzed: finalIndustry !== parsedData.industry
+          wasAnalyzed: finalIndustry !== parsedData.industry,
+          analysisSource: finalIndustry !== parsedData.industry ? 'position-analysis' : 'company-search'
         });
 
-        // STAGE 1 FIX: Create enriched contact with rigorous field validation
+        // STAGE 2: Create enriched contact with explicit data preservation
         const enrichedContact: Contact = {
-          // Preserve ALL original data with explicit validation
+          // Preserve ALL original data
           id: contact.id,
           name: contact.name,
-          email: contact.email, // STAGE 1 FIX: Always preserve original email
-          category: contact.category,
-          
-          // STAGE 1 FIX: Apply enriched data with validation
-          company: validateCompanyField(parsedData.company, contact.company),
-          position: validatePositionField(parsedData.position, contact.position),
-          lastName: lastName || parsedData.lastName || undefined,
+          company: contact.company,
+          position: contact.position,
+          email: contact.email, // STAGE 2: Always preserve original email
+          category: parsedData.category || contact.category || 'Other', // Use Claude's decision
+          // Add enriched data
+          lastName: lastName || undefined,
           isEnriched: true,
           phone: parsedData.phone || 'Not found',
           website: finalWebsite,
           industry: finalIndustry
         };
 
-        // STAGE 1 FIX: Final integrity verification
-        if (enrichedContact.email !== contact.email) {
-          console.error(`🚨 CRITICAL ERROR: Email integrity compromised for ${contact.name}!`);
-          enrichedContact.email = contact.email; // Force restore
-        }
-
-        console.log(`✅ API: Successfully enriched ${contact.name} with validated data:`, {
-          originalCompany: contact.company,
-          enrichedCompany: enrichedContact.company,
-          originalPosition: contact.position,
-          enrichedPosition: enrichedContact.position,
-          emailPreserved: enrichedContact.email === contact.email,
-          dataIntegrityCheck: 'PASSED'
+        console.log(`✅ API: Successfully enriched ${contact.name} with data:`, {
+          lastName: enrichedContact.lastName,
+          phone: enrichedContact.phone,
+          website: enrichedContact.website,
+          industry: enrichedContact.industry,
+          category: enrichedContact.category,
+          categoryReason: parsedData.categoryReason,
+          industrySource: finalIndustry !== parsedData.industry ? 'position-analysis' : 'company-search',
+          originalEmailPreserved: enrichedContact.email === contact.email
         });
 
         enrichedContacts.push(enrichedContact);
@@ -204,22 +203,22 @@ export async function POST(request: NextRequest) {
         const errorMessage = contactError instanceof Error ? contactError.message : 'Unknown contact error';
         console.error(`❌ API: Failed to enrich ${contact.name}:`, errorMessage);
         
-        // STAGE 1 FIX: Create safe fallback enriched contact
+        // Create fallback enriched contact
         const nameParts = contact.name.split(' ');
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
         
         const failedContact: Contact = {
           id: contact.id,
           name: contact.name,
-          company: contact.company, // STAGE 1 FIX: Preserve original company
-          position: contact.position, // STAGE 1 FIX: Preserve original position
-          email: contact.email, // STAGE 1 FIX: Always preserve original email
-          category: contact.category,
+          company: contact.company,
+          position: contact.position,
+          email: contact.email, // STAGE 2: Always preserve original email
+          category: contact.category || 'Other',
           lastName: lastName || undefined,
           isEnriched: true,
           phone: 'Search failed',
           website: 'Search failed',
-          industry: analyzeComprehensiveIndustry('Search failed', contact.position, contact.company)
+          industry: analyzeIndustryFromPosition('Search failed', contact.position, contact.company)
         };
 
         enrichedContacts.push(failedContact);
@@ -229,6 +228,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ API: Enrichment complete. Returning ${enrichedContacts.length} contacts`);
     
     return NextResponse.json({ 
+      success: true,
       contacts: enrichedContacts 
     });
 
@@ -236,430 +236,43 @@ export async function POST(request: NextRequest) {
     console.error('❌ API: Enrichment process failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json({
+      success: false,
       error: 'Enrichment failed',
       details: errorMessage
     }, { status: 500 });
   }
 }
 
-// STAGE 1 FIX: Enhanced Claude prompt with explicit field mapping
-function createEnhancedAnalysisPrompt(contact: Contact, searchResults: SearchResponse, extractedWebsites: string[]): string {
-  const searchResultsText = searchResults.organic
-    ? searchResults.organic.slice(0, 5).map((result: SearchResult) => 
-        `Title: ${result.title || 'N/A'}
-Link: ${result.link || 'N/A'}
-Content: ${result.snippet || 'N/A'}`
-      ).join('\n\n')
-    : 'No search results available';
-
-  const websitesText = extractedWebsites.length > 0 
-    ? extractedWebsites.join(', ')
-    : 'No websites extracted';
-
-  return `You are a professional contact enrichment specialist. Your task is to analyze search results and extract accurate business information.
-
-CRITICAL INSTRUCTIONS FOR FIELD MAPPING:
-- The "company" field must contain the BUSINESS/ORGANIZATION name only
-- The "position" field must contain the JOB TITLE/ROLE only  
-- NEVER put personal names in the company field
-- NEVER put company names in the position field
-- Be extremely careful about field assignment
-
-CONTACT TO ENRICH:
-Name: ${contact.name}
-Current Company: ${contact.company}
-Current Position: ${contact.position}
-Email: ${contact.email}
-
-SEARCH RESULTS:
-${searchResultsText}
-
-EXTRACTED POTENTIAL WEBSITES:
-${websitesText}
-
-VALIDATION RULES:
-1. Company field should be a business name (e.g., "Franklyn", "Microsoft", "Goldman Sachs")
-2. Position field should be a job title (e.g., "Wealth Manager", "Software Engineer", "Director")
-3. Phone numbers should be in a professional format
-4. Websites should be official company domains
-5. Industry should be descriptive (e.g., "Financial Services", "Technology")
-
-Please analyze the search results and provide enriched contact information in the following EXACT JSON format. Do not include any text outside the JSON structure:
-
-{
-  "company": "BUSINESS_NAME_ONLY",
-  "position": "JOB_TITLE_ONLY", 
-  "phone": "phone_number_or_Not_found",
-  "website": "official_website_or_Not_found",
-  "industry": "industry_name_or_Not_found",
-  "lastName": "extracted_last_name"
-}
-
-CRITICAL: Ensure the company field contains ONLY the business name and position field contains ONLY the job title. Double-check your field assignments before responding.`;
-}
-
-// STAGE 1 FIX: Enhanced response parsing with comprehensive validation
-function parseClaudeResponseWithValidation(
-  enrichmentData: string, 
-  extractedWebsites: string[], 
-  originalContact: Contact
-): ParsedEnrichmentData {
-  try {
-    console.log('🔍 PARSING: Starting enhanced response parsing...');
-    
-    // Clean the response text
-    let responseText = enrichmentData.trim();
-    responseText = responseText.replace(/```json\s?/g, "").replace(/```\s?/g, "").trim();
-    
-    // Try to find JSON structure
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      responseText = jsonMatch[0];
-    }
-    
-    console.log('🔍 PARSING: Cleaned response text:', responseText.substring(0, 200));
-    
-    const parsed = JSON.parse(responseText);
-    console.log('🔍 PARSING: Successfully parsed JSON:', parsed);
-    
-    // STAGE 1 FIX: Enhanced field validation with cross-checking
-    const result: ParsedEnrichmentData = {
-      company: validateAndCleanCompany(parsed.company, originalContact.company),
-      position: validateAndCleanPosition(parsed.position, originalContact.position),
-      phone: parsed.phone || 'Not found',
-      website: parsed.website || 'Not found',
-      industry: parsed.industry || 'Not found',
-      lastName: parsed.lastName || ''
-    };
-    
-    // STAGE 1 FIX: Cross-validation to prevent field swapping
-    if (looksLikePersonalName(result.company)) {
-      console.warn('⚠️ PARSING: Company field contains personal name, using original');
-      result.company = originalContact.company;
-    }
-    
-    if (!looksLikeJobTitle(result.position) && looksLikeCompanyName(result.position)) {
-      console.warn('⚠️ PARSING: Position field contains company name, using original');
-      result.position = originalContact.position;
-    }
-    
-    console.log('✅ PARSING: Validation completed successfully:', result);
-    return result;
-    
-  } catch (error) {
-    console.error('❌ PARSING: Failed to parse Claude response:', error);
-    
-    // STAGE 1 FIX: Safe fallback with original data preservation
-    return {
-      company: originalContact.company,
-      position: originalContact.position,
-      phone: 'Parsing failed',
-      website: 'Parsing failed',
-      industry: 'Parsing failed',
-      lastName: ''
-    };
-  }
-}
-
-// STAGE 1 FIX: Company field validation
-function validateCompanyField(enrichedCompany: string, originalCompany: string): string {
-  console.log('🔍 VALIDATION: Validating company field:', { enriched: enrichedCompany, original: originalCompany });
-  
-  // If enriched data is invalid, keep original
-  if (!enrichedCompany || enrichedCompany === 'Not found' || looksLikePersonalName(enrichedCompany)) {
-    console.log('✅ VALIDATION: Using original company due to invalid enriched data');
-    return originalCompany;
-  }
-  
-  // Use enriched data if it looks valid
-  console.log('✅ VALIDATION: Using enriched company data');
-  return enrichedCompany;
-}
-
-// STAGE 1 FIX: Position field validation  
-function validatePositionField(enrichedPosition: string, originalPosition: string): string {
-  console.log('🔍 VALIDATION: Validating position field:', { enriched: enrichedPosition, original: originalPosition });
-  
-  // If enriched data is invalid, keep original
-  if (!enrichedPosition || enrichedPosition === 'Not found' || 
-      (!looksLikeJobTitle(enrichedPosition) && looksLikeCompanyName(enrichedPosition))) {
-    console.log('✅ VALIDATION: Using original position due to invalid enriched data');
-    return originalPosition;
-  }
-  
-  // Use enriched data if it looks valid
-  console.log('✅ VALIDATION: Using enriched position data');
-  return enrichedPosition;
-}
-
-// STAGE 1 FIX: Enhanced validation helper functions
-function looksLikePersonalName(text: string): boolean {
-  if (!text || typeof text !== 'string' || text.length < 2) return false;
-  
-  const personalNamePatterns = [
-    /^[A-Z][a-z]+ [A-Z][a-z]+$/,    // "John Smith"
-    /^[A-Z][a-z]+$/,                 // "Smith"
-    /^[A-Z]\. [A-Z][a-z]+$/,         // "J. Smith"
-  ];
-  
-  return personalNamePatterns.some((pattern: RegExp) => pattern.test(text.trim()));
-}
-
-function looksLikeJobTitle(text: string): boolean {
-  if (!text || typeof text !== 'string' || text.length < 3) return false;
-  
-  const jobTitleKeywords = [
-    'manager', 'director', 'executive', 'analyst', 'consultant', 'advisor',
-    'specialist', 'coordinator', 'assistant', 'officer', 'representative',
-    'administrator', 'supervisor', 'lead', 'head', 'chief', 'senior',
-    'junior', 'associate', 'partner', 'founder', 'owner', 'president',
-    'vice', 'ceo', 'cto', 'cfo', 'engineer', 'developer', 'designer'
-  ];
-  
-  const lowerText = text.toLowerCase();
-  return jobTitleKeywords.some((keyword: string) => lowerText.includes(keyword));
-}
-
-function looksLikeCompanyName(text: string): boolean {
-  if (!text || typeof text !== 'string' || text.length < 2) return false;
-  
-  const companyIndicators = [
-    'ltd', 'limited', 'inc', 'incorporated', 'corp', 'corporation',
-    'llc', 'plc', 'group', 'holdings', 'ventures', 'partners',
-    'consulting', 'solutions', 'services', 'systems', 'technologies'
-  ];
-  
-  const lowerText = text.toLowerCase();
-  return companyIndicators.some((indicator: string) => lowerText.includes(indicator)) ||
-         /^[A-Z][a-zA-Z\s&]+$/.test(text.trim()); // Capitalized business name pattern
-}
-
-function validateAndCleanCompany(company: string, fallback: string): string {
-  if (!company || company.trim().length === 0) return fallback;
-  if (looksLikePersonalName(company)) return fallback;
-  return company.trim();
-}
-
-function validateAndCleanPosition(position: string, fallback: string): string {
-  if (!position || position.trim().length === 0) return fallback;
-  if (!looksLikeJobTitle(position) && looksLikeCompanyName(position)) return fallback;
-  return position.trim();
-}
-
-// Enhanced industry analysis combining multiple approaches
-function analyzeComprehensiveIndustry(searchIndustry: string, position: string, company: string): string {
-  console.log('🔍 INDUSTRY: Starting comprehensive industry analysis:', { 
-    searchIndustry, 
-    position, 
-    company 
-  });
-
-  // Stage 1: Use search result if valid
-  if (searchIndustry && searchIndustry !== 'Not found' && searchIndustry !== 'Search failed' && searchIndustry !== 'Parsing failed') {
-    console.log('✅ INDUSTRY: Using search result industry');
-    return searchIndustry;
-  }
-
-  // Stage 2: Company-specific mapping
-  const companyIndustry = getKnownCompanyIndustry(company);
-  if (companyIndustry) {
-    console.log('✅ INDUSTRY: Mapped from known company database');
-    return companyIndustry;
-  }
-
-  // Stage 3: Position-based analysis
-  const positionIndustry = analyzeIndustryFromPosition(position, company);
-  if (positionIndustry && positionIndustry !== 'Not found') {
-    console.log('✅ INDUSTRY: Derived from position analysis');
-    return positionIndustry;
-  }
-
-  console.log('⚠️ INDUSTRY: Could not determine industry');
-  return 'Not found';
-}
-
-// STAGE 1 FIX: Known company database for specific mapping
-function getKnownCompanyIndustry(company: string): string | null {
-  if (!company) return null;
-  
-  const companyLower = company.toLowerCase();
-  
-  // Financial services companies
-  const financialCompanies: { [key: string]: string } = {
-    'franklyn': 'Financial Services',
-    'goldman sachs': 'Financial Services', 
-    'morgan stanley': 'Financial Services',
-    'j.p. morgan': 'Financial Services',
-    'barclays': 'Financial Services',
-    'hsbc': 'Financial Services',
-    'lloyds': 'Financial Services',
-    'natwest': 'Financial Services',
-    'santander': 'Financial Services',
-    'deutsche bank': 'Financial Services',
-    'credit suisse': 'Financial Services',
-    'ubs': 'Financial Services'
-  };
-  
-  // Check for exact matches first
-  if (financialCompanies[companyLower]) {
-    return financialCompanies[companyLower];
-  }
-  
-  // Check for partial matches
-  for (const [companyName, industry] of Object.entries(financialCompanies)) {
-    if (companyLower.includes(companyName) || companyName.includes(companyLower)) {
-      return industry;
-    }
-  }
-  
-  return null;
-}
-
-// Enhanced position-based industry analysis
-function analyzeIndustryFromPosition(position: string, company: string): string {
-  if (!position) return 'Not found';
-  
-  console.log('🔍 INDUSTRY: Analyzing position for industry:', { position, company });
-
-  const pos = position.toLowerCase();
-  const comp = company.toLowerCase();
-
-  // Financial Services - Enhanced detection
-  if (pos.includes('wealth manager') || pos.includes('financial advisor') || pos.includes('investment') || 
-      pos.includes('portfolio manager') || pos.includes('private banker') || pos.includes('fund manager') ||
-      pos.includes('relationship manager') || pos.includes('client manager') || pos.includes('asset manager') ||
-      comp.includes('wealth') || comp.includes('investment') || comp.includes('financial') || 
-      comp.includes('asset management') || comp.includes('private bank')) {
-    console.log('✅ INDUSTRY: Mapped to Financial Services');
-    return 'Financial Services';
-  }
-
-  // Technology
-  if (pos.includes('developer') || pos.includes('engineer') || pos.includes('programmer') || pos.includes('tech') ||
-      pos.includes('software') || pos.includes('data scientist') || pos.includes('devops') || pos.includes('architect') ||
-      comp.includes('tech') || comp.includes('software') || comp.includes('digital') || comp.includes('data')) {
-    console.log('✅ INDUSTRY: Mapped to Technology');
-    return 'Technology'; 
-  }
-
-  // Continue with other industries...
-  // (Rest of the industry mapping logic remains the same)
-  
-  console.log('⚠️ INDUSTRY: Could not determine industry from position or company');
-  return 'Not found';
-}
-
-// Extract potential websites from search results
-function extractWebsitesFromSearchResults(searchResults: SearchResponse, companyName: string): string[] {
-  if (!searchResults.organic || searchResults.organic.length === 0) {
-    return [];
-  }
-
-  const companyNameWords = companyName.toLowerCase().split(' ').filter(word => word.length > 2);
-  const websites: WebsiteCandidate[] = [];
-
-  for (const result of searchResults.organic) {
-    if (!result.link) continue;
-
-    try {
-      const url = new URL(result.link);
-      const domain = url.hostname.toLowerCase();
-      
-      // Skip non-company domains
-      const skipDomains = [
-        'linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com',
-        'youtube.com', 'google.com', 'wikipedia.org', 'bloomberg.com',
-        'crunchbase.com', 'glassdoor.com', 'indeed.com', 'companieshouse.gov.uk',
-        'endole.co.uk', 'dnb.com', 'reuters.com', 'bbc.co.uk'
-      ];
-      
-      if (skipDomains.some((skip: string) => domain.includes(skip))) {
-        continue;
-      }
-      
-      // Calculate relevance score
-      let score = 0;
-      
-      // Domain contains company name words
-      companyNameWords.forEach((word: string) => {
-        if (domain.includes(word)) {
-          score += 10;
-        }
-      });
-      
-      // Prefer common TLDs
-      if (domain.endsWith('.com') || domain.endsWith('.co.uk')) {
-        score += 5;
-      }
-      
-      // Prefer shorter domains (likely main company domain)
-      if (domain.split('.').length <= 3) {
-        score += 3;
-      }
-      
-      websites.push({
-        url: result.link,
-        score: score,
-        domain: domain
-      });
-      
-    } catch (e) {
-      // Invalid URL, skip
-      continue;
-    }
-  }
-
-  // Sort by score and return top URLs
-  const sortedWebsites = websites
-    .sort((a: WebsiteCandidate, b: WebsiteCandidate) => b.score - a.score)
-    .slice(0, 3)
-    .map((w: WebsiteCandidate) => w.url);
-    
-  console.log('🔍 WEBSITES: Extracted and scored websites:', websites.map((w: WebsiteCandidate) => ({ url: w.url, score: w.score })));
-  
-  return sortedWebsites;
-}
-
-// Validate and improve website URL
-function validateAndImproveWebsiteURL(websiteFromClaude: string, extractedWebsites: string[], companyName: string): string {
-  // If Claude found a good website, use it
-  if (websiteFromClaude && websiteFromClaude !== 'Not found' && websiteFromClaude.startsWith('http')) {
-    return websiteFromClaude;
-  }
-  
-  // Otherwise, use the best extracted website
-  if (extractedWebsites.length > 0) {
-    return extractedWebsites[0];
-  }
-  
-  return 'Not found';
-}
-
 // Perform web search using Serper API
 async function performWebSearch(query: string): Promise<SearchResponse> {
   try {
-    console.log('🔍 SERPER: Making search request for query:', query);
+    console.log('🔍 SERPER: Starting search for query:', query);
     
     if (!process.env.SERPER_API_KEY) {
       console.log('❌ SERPER: API key not found in environment');
       throw new Error('SERPER_API_KEY not configured');
     }
 
+    console.log('🔍 SERPER: Using API key:', process.env.SERPER_API_KEY.substring(0, 8) + '...');
+    
     const response = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: {
         'X-API-KEY': process.env.SERPER_API_KEY,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         q: query,
-        num: 5
-      }),
+        num: 10
+      })
     });
 
+    console.log('🔍 SERPER: Response status:', response.status);
+
     if (!response.ok) {
-      console.log('❌ SERPER: API request failed:', response.status);
-      throw new Error(`Serper API failed: ${response.status}`);
+      const errorText = await response.text();
+      console.log('❌ SERPER: Error response:', errorText);
+      throw new Error(`Serper API failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -672,6 +285,52 @@ async function performWebSearch(query: string): Promise<SearchResponse> {
     console.error('❌ SERPER: Search failed for query:', query, errorMessage);
     throw error;
   }
+}
+
+// Enhanced Claude prompt with categorisation logic
+function createAnalysisPrompt(companyName: string, searchResults: SearchResponse, extractedWebsites: string[], userProfile: UserProfile): string {
+  const searchText = searchResults.organic?.slice(0, 3).map(result => 
+    `Title: ${result.title || 'N/A'}\nURL: ${result.link || 'N/A'}\nSnippet: ${result.snippet || 'N/A'}`
+  ).join('\n---\n') || 'No search results available';
+
+  return `
+Analyze this company and provide enrichment data AND categorization:
+
+COMPANY: ${companyName}
+
+SEARCH RESULTS:
+${searchText}
+
+EXTRACTED POTENTIAL WEBSITES: ${extractedWebsites.length > 0 ? extractedWebsites.join(', ') : 'None found'}
+
+USER PROFILE:
+- Target Market: ${userProfile.targetMarket}
+- Business Type: ${userProfile.businessType}  
+- User Company: ${userProfile.company}
+- Referral Partners: ${userProfile.referralPartners}
+
+CATEGORISATION RULES:
+- Ideal Client: Companies that match the user's target market (${userProfile.targetMarket})
+- Referral Partners: Companies that match referral partner types (${userProfile.referralPartners})
+- Champions: Companies that could refer clients to the user but aren't direct referral partners
+- Competitors: Companies similar to user's business type (${userProfile.businessType})
+- Other: Everything else that doesn't fit the above categories
+
+INSTRUCTIONS:
+1. Extract phone number from search results (UK format preferred)
+2. Find the main company website (clean URL, remove paths like /contact or /about)
+3. Determine the company's industry based on what they do
+4. Categorize the company according to the rules above
+5. Provide a brief reason for your categorisation choice
+
+Respond with ONLY this JSON format (no additional text):
+{
+  "phone": "phone number or 'Not found'",
+  "website": "clean main website URL or 'Not found'",
+  "industry": "specific industry name",
+  "category": "Ideal Client|Referral Partners|Champions|Competitors|Other",
+  "categoryReason": "brief explanation for categorisation choice"
+}`;
 }
 
 // Perform Claude analysis
@@ -719,4 +378,276 @@ async function performClaudeAnalysis(prompt: string): Promise<string> {
     console.error('❌ CLAUDE: API failed:', errorMessage);
     throw error;
   }
+}
+
+// Parse Claude's response with category support
+function parseClaudeResponse(claudeResponse: string, extractedWebsites: string[], contactName: string): any {
+  try {
+    console.log(`🔍 PARSE: Processing Claude response for ${contactName}:`, claudeResponse.substring(0, 200) + '...');
+    
+    // Extract JSON from Claude's response
+    const jsonMatch = claudeResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log(`❌ PARSE: No JSON found in Claude response for ${contactName}`);
+      throw new Error('No JSON found in Claude response');
+    }
+
+    const jsonString = jsonMatch[0];
+    console.log(`🔍 PARSE: Extracted JSON string:`, jsonString);
+    
+    const parsed = JSON.parse(jsonString);
+    console.log(`🔍 PARSE: Successfully parsed JSON for ${contactName}:`, parsed);
+    
+    return {
+      phone: parsed.phone || 'Not found',
+      website: parsed.website || 'Not found',
+      industry: parsed.industry || 'Not found',
+      category: parsed.category || 'Other',
+      categoryReason: parsed.categoryReason || 'No reason provided'
+    };
+  } catch (error) {
+    console.error(`❌ PARSE: Failed to parse Claude response for ${contactName}:`, error);
+    console.error(`❌ PARSE: Raw response was:`, claudeResponse);
+    
+    return {
+      phone: 'Parsing failed',
+      website: extractedWebsites.length > 0 ? extractedWebsites[0] : 'Parsing failed',
+      industry: 'Parsing failed',
+      category: 'Other',
+      categoryReason: 'Failed to parse Claude response'
+    };
+  }
+}
+
+// STAGE 3: Extract potential websites from search results
+function extractWebsitesFromSearchResults(searchResults: SearchResponse, companyName: string): string[] {
+  if (!searchResults.organic || searchResults.organic.length === 0) {
+    return [];
+  }
+
+  const companyNameWords = companyName.toLowerCase().split(' ').filter(word => word.length > 2);
+  const websites: WebsiteCandidate[] = [];
+
+  for (const result of searchResults.organic) {
+    if (!result.link) continue;
+
+    try {
+      const url = new URL(result.link);
+      const domain = url.hostname.toLowerCase();
+      
+      // Skip non-company domains
+      const skipDomains = [
+        'linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com',
+        'youtube.com', 'google.com', 'wikipedia.org', 'bloomberg.com',
+        'crunchbase.com', 'glassdoor.com', 'indeed.com', 'companieshouse.gov.uk',
+        'endole.co.uk', 'dnb.com', 'reuters.com', 'bbc.co.uk'
+      ];
+      
+      if (skipDomains.some(skip => domain.includes(skip))) {
+        continue;
+      }
+      
+      // Calculate relevance score
+      let score = 0;
+      
+      // Domain contains company name words
+      companyNameWords.forEach(word => {
+        if (domain.includes(word)) {
+          score += 10;
+        }
+      });
+      
+      // Prefer common TLDs
+      if (domain.endsWith('.com') || domain.endsWith('.co.uk')) {
+        score += 5;
+      }
+      
+      // Prefer shorter domains (likely main company domain)
+      if (domain.split('.').length <= 3) {
+        score += 3;
+      }
+      
+      // Boost if it's a homepage
+      if (url.pathname === '/' || url.pathname === '') {
+        score += 5;
+      }
+      
+      websites.push({
+        url: `https://${domain}`,
+        score
+      });
+      
+    } catch (urlError) {
+      // Skip invalid URLs
+      continue;
+    }
+  }
+
+  // Sort by score and return top URLs
+  return websites
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(w => w.url);
+}
+
+// STAGE 3: Validate and improve website URL
+function validateAndImproveWebsiteURL(claudeWebsite: string, extractedWebsites: string[], companyName: string): string {
+  // If Claude didn't find a website, use extracted ones
+  if (!claudeWebsite || claudeWebsite === 'Not found' || claudeWebsite === 'Parsing failed') {
+    return extractedWebsites.length > 0 ? extractedWebsites[0] : 'Not found';
+  }
+
+  try {
+    // Clean up Claude's website URL
+    let cleanedUrl = claudeWebsite.trim();
+    
+    // Add protocol if missing
+    if (!cleanedUrl.startsWith('http')) {
+      cleanedUrl = 'https://' + cleanedUrl;
+    }
+    
+    const url = new URL(cleanedUrl);
+    
+    // Remove paths, keep only domain
+    const cleanDomain = `https://${url.hostname}`;
+    
+    console.log('🔍 WEBSITE: URL validation:', {
+      original: claudeWebsite,
+      cleaned: cleanDomain
+    });
+    
+    return cleanDomain;
+    
+  } catch (error) {
+    console.log('❌ WEBSITE: Invalid URL from Claude, using extracted websites');
+    return extractedWebsites.length > 0 ? extractedWebsites[0] : 'Not found';
+  }
+}
+
+// INDUSTRY FIX: Analyze industry from contact position and company
+function analyzeIndustryFromPosition(currentIndustry: string, position: string, company: string): string {
+  // If we already have a valid industry from company search, use it
+  if (currentIndustry && currentIndustry !== 'Not found' && currentIndustry !== 'Search failed' && currentIndustry !== 'Parsing failed') {
+    return currentIndustry;
+  }
+
+  console.log('🔍 INDUSTRY: Analyzing position for industry:', { position, company });
+
+  const pos = position.toLowerCase();
+  const comp = company.toLowerCase();
+
+  // Financial Services
+  if (pos.includes('wealth manager') || pos.includes('financial advisor') || pos.includes('investment') || 
+      pos.includes('portfolio manager') || pos.includes('private banker') || pos.includes('fund manager') ||
+      comp.includes('wealth') || comp.includes('investment') || comp.includes('financial') || comp.includes('asset management')) {
+    console.log('✅ INDUSTRY: Mapped to Financial Services');
+    return 'Financial Services';
+  }
+
+  // Technology
+  if (pos.includes('developer') || pos.includes('engineer') || pos.includes('programmer') || pos.includes('tech') ||
+      pos.includes('software') || pos.includes('data scientist') || pos.includes('devops') || pos.includes('architect') ||
+      comp.includes('tech') || comp.includes('software') || comp.includes('digital') || comp.includes('data')) {
+    console.log('✅ INDUSTRY: Mapped to Technology');
+    return 'Technology';
+  }
+
+  // Marketing & Advertising
+  if (pos.includes('marketing') || pos.includes('brand') || pos.includes('advertising') || pos.includes('social media') ||
+      pos.includes('content') || pos.includes('digital marketing') || pos.includes('seo') || pos.includes('ppc') ||
+      comp.includes('marketing') || comp.includes('advertising') || comp.includes('agency') || comp.includes('creative')) {
+    console.log('✅ INDUSTRY: Mapped to Marketing & Advertising');
+    return 'Marketing & Advertising';
+  }
+
+  // Healthcare
+  if (pos.includes('doctor') || pos.includes('nurse') || pos.includes('physician') || pos.includes('medical') ||
+      pos.includes('healthcare') || pos.includes('clinical') || pos.includes('pharma') || pos.includes('therapist') ||
+      comp.includes('health') || comp.includes('medical') || comp.includes('hospital') || comp.includes('clinic')) {
+    console.log('✅ INDUSTRY: Mapped to Healthcare');
+    return 'Healthcare';
+  }
+
+  // Legal
+  if (pos.includes('lawyer') || pos.includes('solicitor') || pos.includes('legal') || pos.includes('attorney') ||
+      pos.includes('barrister') || pos.includes('counsel') || pos.includes('paralegal') ||
+      comp.includes('law') || comp.includes('legal') || comp.includes('solicitors')) {
+    console.log('✅ INDUSTRY: Mapped to Legal Services');
+    return 'Legal Services';
+  }
+
+  // Education
+  if (pos.includes('teacher') || pos.includes('professor') || pos.includes('lecturer') || pos.includes('educator') ||
+      pos.includes('academic') || pos.includes('instructor') || pos.includes('tutor') ||
+      comp.includes('school') || comp.includes('university') || comp.includes('education') || comp.includes('college')) {
+    console.log('✅ INDUSTRY: Mapped to Education');
+    return 'Education';
+  }
+
+  // Real Estate
+  if (pos.includes('estate agent') || pos.includes('property') || pos.includes('real estate') || pos.includes('surveyor') ||
+      pos.includes('valuer') || pos.includes('lettings') || pos.includes('property manager') ||
+      comp.includes('property') || comp.includes('estate') || comp.includes('real estate') || comp.includes('lettings')) {
+    console.log('✅ INDUSTRY: Mapped to Real Estate');
+    return 'Real Estate';
+  }
+
+  // Consulting
+  if (pos.includes('consultant') || pos.includes('advisor') || pos.includes('strategist') || pos.includes('analyst') ||
+      pos.includes('business development') || pos.includes('transformation') ||
+      comp.includes('consulting') || comp.includes('advisory') || comp.includes('strategy')) {
+    console.log('✅ INDUSTRY: Mapped to Consulting');
+    return 'Consulting';
+  }
+
+  // Manufacturing
+  if (pos.includes('manufacturing') || pos.includes('production') || pos.includes('operations') || pos.includes('supply chain') ||
+      pos.includes('quality') || pos.includes('plant') || pos.includes('factory') ||
+      comp.includes('manufacturing') || comp.includes('industrial') || comp.includes('automotive') || comp.includes('aerospace')) {
+    console.log('✅ INDUSTRY: Mapped to Manufacturing');
+    return 'Manufacturing';
+  }
+
+  // Retail
+  if (pos.includes('retail') || pos.includes('sales assistant') || pos.includes('store') || pos.includes('merchandising') ||
+      pos.includes('buyer') || pos.includes('category') || pos.includes('visual merchandiser') ||
+      comp.includes('retail') || comp.includes('store') || comp.includes('shop') || comp.includes('fashion')) {
+    console.log('✅ INDUSTRY: Mapped to Retail');
+    return 'Retail';
+  }
+
+  // Construction
+  if (pos.includes('construction') || pos.includes('builder') || pos.includes('contractor') || pos.includes('architect') ||
+      pos.includes('civil engineer') || pos.includes('quantity surveyor') || pos.includes('project manager') ||
+      comp.includes('construction') || comp.includes('building') || comp.includes('contractors') || comp.includes('infrastructure')) {
+    console.log('✅ INDUSTRY: Mapped to Construction');
+    return 'Construction';
+  }
+
+  // Media & Entertainment
+  if (pos.includes('journalist') || pos.includes('editor') || pos.includes('producer') || pos.includes('director') ||
+      pos.includes('media') || pos.includes('broadcasting') || pos.includes('film') || pos.includes('television') ||
+      comp.includes('media') || comp.includes('broadcasting') || comp.includes('entertainment') || comp.includes('production')) {
+    console.log('✅ INDUSTRY: Mapped to Media & Entertainment');
+    return 'Media & Entertainment';
+  }
+
+  // Generic business roles - try to infer from company name
+  if (pos.includes('manager') || pos.includes('director') || pos.includes('executive') || pos.includes('officer')) {
+    if (comp.includes('bank') || comp.includes('finance') || comp.includes('credit')) {
+      console.log('✅ INDUSTRY: Manager at financial company - mapped to Financial Services');
+      return 'Financial Services';
+    }
+    if (comp.includes('tech') || comp.includes('software') || comp.includes('digital')) {
+      console.log('✅ INDUSTRY: Manager at tech company - mapped to Technology');
+      return 'Technology';
+    }
+    if (comp.includes('marketing') || comp.includes('agency') || comp.includes('creative')) {
+      console.log('✅ INDUSTRY: Manager at marketing company - mapped to Marketing & Advertising');
+      return 'Marketing & Advertising';
+    }
+  }
+
+  console.log('⚠️ INDUSTRY: Could not determine industry from position or company');
+  return currentIndustry || 'Not found';
 }
