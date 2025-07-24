@@ -68,11 +68,11 @@ export async function POST(request: NextRequest) {
         const companyResults = await performWebSearch(companyQuery);
 
         console.log('🔍 API: Search results received:', { 
-          companyResults: companyResults?.organic?.length || 0
+          companyResults: companyResults && companyResults.organic ? companyResults.organic.length : 0
         });
 
         // Log first search result for debugging
-        if (companyResults?.organic?.length > 0) {
+        if (companyResults && companyResults.organic && companyResults.organic.length > 0) {
           console.log('🔍 API: First company result:', {
             title: companyResults.organic[0].title,
             link: companyResults.organic[0].link,
@@ -395,7 +395,7 @@ async function performWebSearch(query: string): Promise<SearchResponse> {
     }
 
     const data: SearchResponse = await response.json();
-    console.log('✅ SERPER: Search successful, results:', data.organic?.length || 0);
+    console.log('✅ SERPER: Search successful, results:', data.organic ? data.organic.length : 0);
     
     return data;
   } catch (error) {
