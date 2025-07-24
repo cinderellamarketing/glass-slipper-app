@@ -97,8 +97,8 @@ function createStrategyPrompt(
   const competitors = contacts?.filter(c => c.category === 'Competitors') || [];
 
   // Extract key companies and positions for insights
-  const keyCompanies = [...new Set(idealClients.slice(0, 10).map(c => c.company))];
-  const keyPositions = [...new Set(idealClients.slice(0, 10).map(c => c.position))];
+  const keyCompanies = Array.from(new Set(idealClients.slice(0, 10).map(c => c.company)));
+  const keyPositions = Array.from(new Set(idealClients.slice(0, 10).map(c => c.position)));
 
   return `
 Create a comprehensive referral strategy for ${user.name}, ${user.businessType} professional at ${user.company}.
