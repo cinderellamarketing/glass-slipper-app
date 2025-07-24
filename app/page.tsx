@@ -812,57 +812,6 @@ const GlassSlipperApp = () => {
     }
   };
 
-  // Contact action handlers
-  const markIdealClient = (contactId: number) => {
-    setContactTasks(prev => ({
-      ...prev,
-      [contactId]: {
-        ...prev[contactId],
-        idealClient: {
-          completed: true,
-          completedDate: new Date().toISOString()
-        }
-      }
-    }));
-
-    setDailyTasks(prev => {
-      const newCount = (prev.chooseIdealClients.count || 0) + 1;
-      return {
-        ...prev,
-        chooseIdealClients: {
-          ...prev.chooseIdealClients,
-          count: newCount,
-          completed: newCount >= (prev.chooseIdealClients.total || 5)
-        }
-      };
-    });
-  };
-
-  const commentOnPost = (contactId: number) => {
-    setContactTasks(prev => ({
-      ...prev,
-      [contactId]: {
-        ...prev[contactId],
-        commentOnPost: {
-          completed: true,
-          completedDate: new Date().toISOString()
-        }
-      }
-    }));
-
-    setDailyTasks(prev => {
-      const newCount = (prev.commentOnPosts.count || 0) + 1;
-      return {
-        ...prev,
-        commentOnPosts: {
-          ...prev.commentOnPosts,
-          count: newCount,
-          completed: newCount >= (prev.commentOnPosts.total || 10)
-        }
-      };
-    });
-  };
-
   // Writing style analysis function
   const analyzeWritingStyle = async () => {
     if (totalWordCount < 2000) {
