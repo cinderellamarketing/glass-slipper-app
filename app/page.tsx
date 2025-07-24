@@ -730,13 +730,12 @@ This strategy aligns with current best practices in professional services referr
     setSelectedLeadMagnet(null);
   };
 
-  // Save settings
+  // Save settings (legacy function - can be removed if not used elsewhere)
   const saveSettings = () => {
     setShowLoadingModal(true);
     setLoadingMessage('Saving your settings...');
     setTimeout(() => {
       setShowLoadingModal(false);
-      setShowSettingsModal(false);
       setSuccessMessage('Settings saved successfully!');
       setShowSuccessModal(true);
       // Mark task as complete
