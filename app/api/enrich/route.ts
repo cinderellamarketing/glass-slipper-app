@@ -6,7 +6,7 @@ interface Contact {
   name: string;
   company: string;
   position: string;
-  email: string;
+  email?: string;  // Made optional since we delete it to preserve original
   category?: string;
   isEnriched?: boolean;
   phone?: string;
@@ -20,6 +20,16 @@ interface WebsiteCandidate {
   domain: string;
   score: number;
   title: string;
+}
+
+interface SearchResult {
+  title?: string;
+  link?: string;
+  snippet?: string;
+}
+
+interface SearchResponse {
+  organic?: SearchResult[];
 }
 
 export async function POST(request: NextRequest) {
@@ -202,7 +212,7 @@ Focus on finding the PRIMARY official company website. If multiple websites exis
     console.log(`✅ API: Enrichment complete. Returning ${enrichedContacts.length} contacts`);
     
     // STAGE 2: Final validation - ensure no email fields in response
-    enrichedContacts.forEach((contact, index) => {
+    enrichedContacts.forEach((contact: Contact, index: number) => {
       if (contact.email) {
         console.warn(`⚠️ API: Removing email field from response contact ${index} to preserve original data`);
         delete contact.email;
@@ -225,7 +235,7 @@ Focus on finding the PRIMARY official company website. If multiple websites exis
 }
 
 // STAGE 3: NEW FUNCTION - Extract potential websites from search results
-function extractWebsitesFromSearchResults(searchResults: any, companyName: string): string[] {
+function extractWebsitesFromSearchResults(searchResults: SearchResponse, companyName: string): string[] {
   const websites: WebsiteCandidate[] = [];
   
   if (!searchResults?.organic) {
@@ -234,7 +244,11 @@ function extractWebsitesFromSearchResults(searchResults: any, companyName: strin
 
   const companyNameWords = companyName.toLowerCase().split(' ').filter(word => word.length > 2);
   
-  searchResults.organic.forEach(result => {
+  if (!searchResults.organic) {
+    return websites;
+  }
+  
+  searchResults.organic.forEach((result: SearchResult) => {
     if (result.link) {
       try {
         const url = new URL(result.link);
@@ -296,7 +310,7 @@ function extractWebsitesFromSearchResults(searchResults: any, companyName: strin
           url: result.link,
           domain: domain,
           score: score,
-          title: result.title
+          title: result.title || ''
         });
         
       } catch (urlError) {
@@ -348,7 +362,7 @@ function validateAndImproveWebsiteURL(websiteURL: string, extractedWebsites: str
 }
 
 // Helper function for web search
-async function performWebSearch(query: string): Promise<any> {
+async function performWebSearch(query: string): Promise<SearchResponse> {
   try {
     console.log('🔍 SERPER: Making search request for:', query);
     
@@ -380,7 +394,7 @@ async function performWebSearch(query: string): Promise<any> {
       throw new Error(`Search failed: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
+    const data: SearchResponse = await response.json();
     console.log('✅ SERPER: Search successful, results:', data.organic?.length || 0);
     
     return data;
