@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// TypeScript interfaces
+interface Contact {
+  id: number;
+  name: string;
+  company: string;
+  position: string;
+  email: string;
+  category?: string;
+  isEnriched?: boolean;
+  phone?: string;
+  website?: string;
+  lastName?: string;
+  industry?: string;
+}
+
+interface WebsiteCandidate {
+  url: string;
+  domain: string;
+  score: number;
+  title: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🔍 API: Enrichment request received');
@@ -14,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔍 API: Processing ${contacts.length} contacts`);
-    const enrichedContacts = [];
+    const enrichedContacts: Contact[] = [];
 
     // Process each contact
     for (const contact of contacts) {
@@ -203,8 +225,8 @@ Focus on finding the PRIMARY official company website. If multiple websites exis
 }
 
 // STAGE 3: NEW FUNCTION - Extract potential websites from search results
-function extractWebsitesFromSearchResults(searchResults, companyName) {
-  const websites = [];
+function extractWebsitesFromSearchResults(searchResults: any, companyName: string): string[] {
+  const websites: WebsiteCandidate[] = [];
   
   if (!searchResults?.organic) {
     return websites;
@@ -291,7 +313,7 @@ function extractWebsitesFromSearchResults(searchResults, companyName) {
 }
 
 // STAGE 3: NEW FUNCTION - Validate and improve website URL
-function validateAndImproveWebsiteURL(websiteURL, extractedWebsites, companyName) {
+function validateAndImproveWebsiteURL(websiteURL: string, extractedWebsites: string[], companyName: string): string {
   try {
     // If it's already a valid URL, return it
     const url = new URL(websiteURL);
@@ -326,7 +348,7 @@ function validateAndImproveWebsiteURL(websiteURL, extractedWebsites, companyName
 }
 
 // Helper function for web search
-async function performWebSearch(query) {
+async function performWebSearch(query: string): Promise<any> {
   try {
     console.log('🔍 SERPER: Making search request for:', query);
     
@@ -370,7 +392,7 @@ async function performWebSearch(query) {
 }
 
 // Helper function for Claude analysis
-async function performClaudeAnalysis(prompt) {
+async function performClaudeAnalysis(prompt: string): Promise<string> {
   try {
     console.log('🔍 CLAUDE: Making Claude API call...');
     
