@@ -356,7 +356,7 @@ const GlassSlipperApp = () => {
 
     console.log(`✅ PARSING: Successfully parsed ${contacts.length} contacts`);
     return contacts;
-  }, []);
+  }, [user.businessType]);
 
   // Handle CSV upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
