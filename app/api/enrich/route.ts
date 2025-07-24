@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         console.log(`🔍 API: Starting enrichment for ${contact.name}`);
         
         // STAGE 1 FIX: Enhanced name parsing with validation
-        const nameParts = contact.name.trim().split(' ').filter(part => part.length > 0);
+        const nameParts = contact.name.trim().split(' ').filter((part: string) => part.length > 0);
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
         console.log(`🔍 API: Name parsing:`, {
           fullName: contact.name,
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
 // STAGE 1 FIX: Enhanced Claude prompt with explicit field mapping
 function createEnhancedAnalysisPrompt(contact: Contact, searchResults: SearchResponse, extractedWebsites: string[]): string {
   const searchResultsText = searchResults.organic
-    ? searchResults.organic.slice(0, 5).map(result => 
+    ? searchResults.organic.slice(0, 5).map((result: SearchResult) => 
         `Title: ${result.title || 'N/A'}
 Link: ${result.link || 'N/A'}
 Content: ${result.snippet || 'N/A'}`
@@ -398,7 +398,7 @@ function looksLikePersonalName(text: string): boolean {
     /^[A-Z]\. [A-Z][a-z]+$/,         // "J. Smith"
   ];
   
-  return personalNamePatterns.some(pattern => pattern.test(text.trim()));
+  return personalNamePatterns.some((pattern: RegExp) => pattern.test(text.trim()));
 }
 
 function looksLikeJobTitle(text: string): boolean {
@@ -413,7 +413,7 @@ function looksLikeJobTitle(text: string): boolean {
   ];
   
   const lowerText = text.toLowerCase();
-  return jobTitleKeywords.some(keyword => lowerText.includes(keyword));
+  return jobTitleKeywords.some((keyword: string) => lowerText.includes(keyword));
 }
 
 function looksLikeCompanyName(text: string): boolean {
@@ -426,7 +426,7 @@ function looksLikeCompanyName(text: string): boolean {
   ];
   
   const lowerText = text.toLowerCase();
-  return companyIndicators.some(indicator => lowerText.includes(indicator)) ||
+  return companyIndicators.some((indicator: string) => lowerText.includes(indicator)) ||
          /^[A-Z][a-zA-Z\s&]+$/.test(text.trim()); // Capitalized business name pattern
 }
 
@@ -569,7 +569,7 @@ function extractWebsitesFromSearchResults(searchResults: SearchResponse, company
         'endole.co.uk', 'dnb.com', 'reuters.com', 'bbc.co.uk'
       ];
       
-      if (skipDomains.some(skip => domain.includes(skip))) {
+      if (skipDomains.some((skip: string) => domain.includes(skip))) {
         continue;
       }
       
@@ -577,7 +577,7 @@ function extractWebsitesFromSearchResults(searchResults: SearchResponse, company
       let score = 0;
       
       // Domain contains company name words
-      companyNameWords.forEach(word => {
+      companyNameWords.forEach((word: string) => {
         if (domain.includes(word)) {
           score += 10;
         }
@@ -607,11 +607,11 @@ function extractWebsitesFromSearchResults(searchResults: SearchResponse, company
 
   // Sort by score and return top URLs
   const sortedWebsites = websites
-    .sort((a, b) => b.score - a.score)
+    .sort((a: WebsiteCandidate, b: WebsiteCandidate) => b.score - a.score)
     .slice(0, 3)
-    .map(w => w.url);
+    .map((w: WebsiteCandidate) => w.url);
     
-  console.log('🔍 WEBSITES: Extracted and scored websites:', websites.map(w => ({ url: w.url, score: w.score })));
+  console.log('🔍 WEBSITES: Extracted and scored websites:', websites.map((w: WebsiteCandidate) => ({ url: w.url, score: w.score })));
   
   return sortedWebsites;
 }

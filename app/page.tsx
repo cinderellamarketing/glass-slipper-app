@@ -202,16 +202,16 @@ const GlassSlipperApp = () => {
   // STAGE 1 FIX: Enhanced contact parsing with better field validation
   const parseContactsFromCSV = useCallback((csvText: string): Contact[] => {
     console.log('🔍 PARSING: Starting CSV parsing...');
-    const lines = csvText.split('\n').filter(line => line.trim());
+    const lines = csvText.split('\n').filter((line: string) => line.trim());
     if (lines.length === 0) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
     console.log('🔍 PARSING: Headers found:', headers);
     
     const contacts: Contact[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      const values = lines[i].split(',').map((v: string) => v.trim().replace(/"/g, ''));
       
       if (values.length < headers.length) continue;
 
@@ -226,7 +226,7 @@ const GlassSlipperApp = () => {
       };
 
       // Map CSV fields to contact properties with validation
-      headers.forEach((header, index) => {
+      headers.forEach((header: string, index: number) => {
         const value = values[index] || '';
         const lowerHeader = header.toLowerCase();
 
@@ -310,7 +310,7 @@ const GlassSlipperApp = () => {
       setContacts(parsedContacts);
       
       // Mark upload task as complete
-      setTasks(prev => prev.map(task =>
+      setTasks((prev: Task[]) => prev.map((task: Task) =>
         task.id === 1 ? { ...task, completed: true } : task
       ));
 
@@ -365,7 +365,7 @@ const GlassSlipperApp = () => {
       return;
     }
 
-    const contactsToEnrich = contacts.filter(c => !c.isEnriched);
+    const contactsToEnrich = contacts.filter((c: Contact) => !c.isEnriched);
     if (contactsToEnrich.length === 0) {
       alert('All contacts are already enriched');
       return;
@@ -389,7 +389,7 @@ const GlassSlipperApp = () => {
       })));
 
       // STAGE 1 FIX: Pre-enrichment data validation
-      const validatedContacts = contactsToEnrich.map(contact => {
+      const validatedContacts = contactsToEnrich.map((contact: Contact) => {
         // Ensure original data integrity before enrichment
         const validated = {
           ...contact,
@@ -440,7 +440,7 @@ const GlassSlipperApp = () => {
       console.log('🔍 ENRICHMENT: Processing enriched contacts...');
       
       // STAGE 1 FIX: Enhanced data integrity protection during state update
-      const updatedContacts = contacts.map(contact => {
+      const updatedContacts = contacts.map((contact: Contact) => {
         const enrichedData = result.contacts.find((ec: Contact) => ec.id === contact.id);
         if (enrichedData) {
           console.log(`🔍 ENRICHMENT: Processing enriched data for ${contact.name}:`, enrichedData);
@@ -495,9 +495,9 @@ const GlassSlipperApp = () => {
       console.log('🔄 Updated contacts with enrichment data:', updatedContacts);
       
       // STAGE 1 FIX: Final data integrity verification
-      const originalEmails = contacts.map(c => c.email);
-      const updatedEmails = updatedContacts.map(c => c.email);
-      const emailsChanged = originalEmails.some((email, index) => email !== updatedEmails[index]);
+      const originalEmails = contacts.map((c: Contact) => c.email);
+      const updatedEmails = updatedContacts.map((c: Contact) => c.email);
+      const emailsChanged = originalEmails.some((email: string, index: number) => email !== updatedEmails[index]);
       
       if (emailsChanged) {
         console.error('🚨 CRITICAL: Email data was modified during enrichment!');
@@ -511,7 +511,7 @@ const GlassSlipperApp = () => {
       console.log('✅ State updated successfully');
       
       // Mark enrichment task as complete
-      setTasks(prev => prev.map(task =>
+      setTasks((prev: Task[]) => prev.map((task: Task) =>
         task.id === 3 ? { ...task, completed: true } : task
       ));
       
@@ -551,14 +551,14 @@ const GlassSlipperApp = () => {
 
   // Delete contact
   const deleteContact = (contactId: number) => {
-    setContacts(prev => prev.filter(c => c.id !== contactId));
+    setContacts((prev: Contact[]) => prev.filter((c: Contact) => c.id !== contactId));
     setShowContactModal(false);
     setSelectedContact(null);
   };
 
   // Update contact category
   const updateCategory = (contactId: number, category: string) => {
-    setContacts(prev => prev.map(contact =>
+    setContacts((prev: Contact[]) => prev.map((contact: Contact) =>
       contact.id === contactId ? { ...contact, category } : contact
     ));
     setSelectedContact(prev => prev ? { ...prev, category } : null);
@@ -597,7 +597,7 @@ This strategy aligns with current best practices in professional services referr
 
       setStrategy(prev => ({ ...prev, generatedStrategy: generatedContent }));
       setShowLoadingModal(false);
-      setTasks(prev => prev.map(task =>
+      setTasks((prev: Task[]) => prev.map((task: Task) =>
         task.id === 4 ? { ...task, completed: true } : task
       ));
       setSuccessMessage('Strategy generated successfully!');
@@ -618,7 +618,7 @@ This strategy aligns with current best practices in professional services referr
     };
 
     setLeadMagnets(prev => [...prev, newLeadMagnet]);
-    setTasks(prev => prev.map(task =>
+    setTasks((prev: Task[]) => prev.map((task: Task) =>
       task.id === 5 ? { ...task, completed: true } : task
     ));
     setSuccessMessage(`${type} created successfully!`);
@@ -627,7 +627,7 @@ This strategy aligns with current best practices in professional services referr
 
   // Download lead magnet
   const downloadLeadMagnet = (leadMagnetId: number) => {
-    setLeadMagnets(prev => prev.map(lm =>
+    setLeadMagnets((prev: LeadMagnet[]) => prev.map((lm: LeadMagnet) =>
       lm.id === leadMagnetId ? { ...lm, downloads: lm.downloads + 1 } : lm
     ));
   };
@@ -641,7 +641,7 @@ This strategy aligns with current best practices in professional services referr
 
     // Mark business settings task as complete if not already
     if (newSettings.businessType || newSettings.targetMarket) {
-      setTasks(prev => prev.map(task =>
+      setTasks((prev: Task[]) => prev.map((task: Task) =>
         task.id === 2 ? { ...task, completed: true } : task
       ));
     }
@@ -700,7 +700,7 @@ This strategy aligns with current best practices in professional services referr
       setSuccessMessage('Settings saved successfully!');
       setShowSuccessModal(true);
       // Mark task as complete
-      setTasks(prev => prev.map(task =>
+      setTasks((prev: Task[]) => prev.map((task: Task) =>
         task.id === 2 ? { ...task, completed: true } : task
       ));
     }, 1500);
@@ -933,7 +933,7 @@ This strategy aligns with current best practices in professional services referr
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
-              {navigationItems.map((item) => {
+              {navigationItems.map((item: NavigationItem) => {
                 const Icon = item.icon;
                 return (
                   <button
@@ -1071,7 +1071,7 @@ This strategy aligns with current best practices in professional services referr
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
               <h2 className="text-xl font-semibold text-white mb-4">Getting Started</h2>
               <div className="space-y-3">
-                {tasks.map((task) => (
+                {tasks.map((task: Task) => (
                   <div key={task.id} className="flex items-center justify-between p-3 bg-white bg-opacity-5 rounded-lg">
                     <div className="flex items-center space-x-3">
                       {task.completed ? (
@@ -1150,7 +1150,7 @@ This strategy aligns with current best practices in professional services referr
                     className="w-full px-3 py-2 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                   >
                     <option value="All">All Categories</option>
-                    {categories.map(category => (
+                    {categories.map((category: string) => (
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
@@ -1183,7 +1183,7 @@ This strategy aligns with current best practices in professional services referr
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white divide-opacity-10">
-                      {filteredContacts.map((contact) => (
+                      {filteredContacts.map((contact: Contact) => (
                         <tr key={contact.id} className="hover:bg-white hover:bg-opacity-5">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
@@ -1361,7 +1361,7 @@ This strategy aligns with current best practices in professional services referr
 
             {leadMagnets.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {leadMagnets.map(magnet => (
+                {leadMagnets.map((magnet: LeadMagnet) => (
                   <div key={magnet.id} className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -1547,7 +1547,7 @@ This strategy aligns with current best practices in professional services referr
               <div className="flex items-center space-x-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-yellow-400">
-                    {Object.values(dailyTasks).filter(task => task.completed && typeof task.completed === 'boolean').length}
+                    {Object.values(dailyTasks).filter((task: DailyTask) => task.completed && typeof task.completed === 'boolean').length}
                   </div>
                   <div className="text-sm text-white text-opacity-60">Tasks Complete</div>
                 </div>
@@ -1556,7 +1556,7 @@ This strategy aligns with current best practices in professional services referr
                     <div 
                       className="bg-gradient-to-r from-yellow-400 to-purple-500 h-3 rounded-full transition-all duration-300"
                       style={{ 
-                        width: `${(Object.values(dailyTasks).filter(task => task.completed && typeof task.completed === 'boolean').length / 3) * 100}%` 
+                        width: `${(Object.values(dailyTasks).filter((task: DailyTask) => task.completed && typeof task.completed === 'boolean').length / 3) * 100}%` 
                       }}
                     />
                   </div>
