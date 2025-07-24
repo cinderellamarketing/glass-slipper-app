@@ -17,6 +17,7 @@ interface Contact {
   website?: string;
   lastName?: string;
   industry?: string;
+  categoryReason?: string;
 }
 
 interface User {
@@ -27,6 +28,11 @@ interface User {
   targetMarket: string;
   writingStyle: string;
   referralPartners: string;
+  // NEW FIELDS FOR WRITING STYLE ANALYSIS:
+  aboutYou: string;
+  aboutYourBusiness: string;
+  analyzedWritingStyle: string;
+  writingStyleAnalyzed: boolean;
 }
 
 interface Task {
@@ -48,7 +54,7 @@ interface LeadMagnet {
 
 interface Strategy {
   oneOffer: string;
-  idealReferralPartners: string;
+  idealClientProfile: string;
   specialFactors: string;
   generatedStrategy: string;
 }
@@ -60,7 +66,7 @@ interface DailyTask {
 }
 
 interface DailyTasks {
-  chooseIdealClients: DailyTask;
+  sendDMsToClients: DailyTask;
   commentOnPosts: DailyTask;
   postContent: DailyTask;
   lastReset: string;
@@ -72,11 +78,7 @@ interface AuthForm {
   confirmPassword: string;
   name: string;
   company: string;
-}
-
-interface ContactTaskStatus {
-  completed: boolean;
-  completedDate: string | null;
+  businessType: string;
 }
 
 interface NavigationItem {
@@ -107,9 +109,13 @@ const GlassSlipperApp = () => {
     email: 'john@example.com', 
     company: 'Growth Dynamics Ltd',
     businessType: 'Consulting',
-    targetMarket: 'B2B SaaS',
+    targetMarket: '',
     writingStyle: 'Professional yet conversational',
-    referralPartners: 'Accountants, Business Coaches'
+    referralPartners: '',
+    aboutYou: '',
+    aboutYourBusiness: '',
+    analyzedWritingStyle: '',
+    writingStyleAnalyzed: false
   });
 
   // Auth state
@@ -121,7 +127,8 @@ const GlassSlipperApp = () => {
     password: '',
     confirmPassword: '',
     name: '',
-    company: ''
+    company: '',
+    businessType: ''
   });
 
   // UI state
@@ -160,7 +167,7 @@ const GlassSlipperApp = () => {
   // Strategy state
   const [strategy, setStrategy] = useState<Strategy>({
     oneOffer: '',
-    idealReferralPartners: '',
+    idealClientProfile: '',
     specialFactors: '',
     generatedStrategy: ''
   });
@@ -179,14 +186,19 @@ const GlassSlipperApp = () => {
 
   // Daily tasks state  
   const [dailyTasks, setDailyTasks] = useState<DailyTasks>({
-    chooseIdealClients: { completed: false, count: 0, total: 5 },
+    sendDMsToClients: { completed: false, count: 0, total: 5 },
     commentOnPosts: { completed: false, count: 0, total: 10 },
     postContent: { completed: false },
     lastReset: new Date().toDateString()
   });
 
-  // Contact task tracking
-  const [contactTasks, setContactTasks] = useState<{ [contactId: number]: { [taskType: string]: ContactTaskStatus } }>({});
+  // Writing style analysis state
+  const [aboutYouWordCount, setAboutYouWordCount] = useState<number>(0);
+  const [aboutBusinessWordCount, setAboutBusinessWordCount] = useState<number>(0);
+  const totalWordCount = aboutYouWordCount + aboutBusinessWordCount;
+
+  // Helper states for contact management
+  const enrichedContactsCount = contacts.filter(c => c.isEnriched).length;
 
   // Navigation items with Profile added at the end
   const navigationItems: NavigationItem[] = [
@@ -380,6 +392,75 @@ const GlassSlipperApp = () => {
     }
   }, [parseContactsFromCSV]);
 
+  // Contact categorization function
+  const categorizeContacts = async () => {
+    const enrichedContacts = contacts.filter(c => c.isEnriched);
+    
+    if (enrichedContacts.length === 0) {
+      alert('No enriched contacts to categorize. Please enrich contacts first.');
+      return;
+    }
+
+    if (!user.targetMarket || !user.referralPartners) {
+      alert('Please complete your profile (Target Market and Referral Partners) before categorizing contacts.');
+      return;
+    }
+
+    setShowLoadingModal(true);
+    setLoadingMessage(`Analyzing ${enrichedContacts.length} contacts by target market companies...`);
+
+    try {
+      const response = await fetch('/api/categorize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contacts: enrichedContacts,
+          userProfile: {
+            targetMarket: user.targetMarket,
+            referralPartners: user.referralPartners,
+            businessType: user.businessType,
+            company: user.company
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Categorization failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.contacts) {
+        // Update contacts with new categories
+        const updatedContacts = contacts.map(contact => {
+          const categorizedContact = result.contacts.find((c: Contact) => c.id === contact.id);
+          if (categorizedContact) {
+            return {
+              ...contact,
+              category: categorizedContact.category,
+              categoryReason: categorizedContact.categoryReason
+            };
+          }
+          return contact;
+        });
+
+        setContacts(updatedContacts);
+        
+        setShowLoadingModal(false);
+        setShowSuccessModal(true);
+        setSuccessMessage(`Successfully categorized ${result.contacts.length} contacts based on target market analysis!`);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Categorization error:', error);
+      setShowLoadingModal(false);
+      alert(`Categorization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Contact enrichment function
   const enrichContacts = async () => {
     if (contacts.length === 0) {
@@ -490,13 +571,13 @@ const GlassSlipperApp = () => {
 
   // Strategy generation
   const generateStrategy = async () => {
-    if (!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors) {
+    if (!strategy.oneOffer || !strategy.idealClientProfile || !strategy.specialFactors) {
       alert('Please fill in all strategy fields');
       return;
     }
 
     setShowLoadingModal(true);
-    setLoadingMessage('Generating personalised referral strategy...');
+    setLoadingMessage('Generating personalised referral strategy with your business insights...');
 
     try {
       const response = await fetch('/api/strategy', {
@@ -508,10 +589,13 @@ const GlassSlipperApp = () => {
           user,
           strategy: {
             oneOffer: strategy.oneOffer,
-            idealReferralPartners: strategy.idealReferralPartners,
+            idealClientProfile: strategy.idealClientProfile,
             specialFactors: strategy.specialFactors
           },
-          contacts: filteredContacts
+          contacts: filteredContacts,
+          writingStyle: user.writingStyleAnalyzed ? user.analyzedWritingStyle : 'Professional yet conversational',
+          aboutYou: user.aboutYou,
+          aboutYourBusiness: user.aboutYourBusiness
         }),
       });
 
@@ -531,7 +615,7 @@ const GlassSlipperApp = () => {
         
         setShowLoadingModal(false);
         setShowSuccessModal(true);
-        setSuccessMessage('Your personalised referral strategy has been generated successfully!');
+        setSuccessMessage('Your personalised referral strategy has been generated with deep business insights!');
       } else {
         throw new Error('Invalid response format');
       }
@@ -545,7 +629,7 @@ const GlassSlipperApp = () => {
   // Lead magnet generation
   const generateLeadMagnet = async (type: string) => {
     setShowLoadingModal(true);
-    setLoadingMessage(`Generating ${type} lead magnet...`);
+    setLoadingMessage(`Generating ${type} lead magnet in your unique style...`);
 
     try {
       const response = await fetch('/api/lead-magnets', {
@@ -557,7 +641,10 @@ const GlassSlipperApp = () => {
           type,
           user,
           strategy: strategy.generatedStrategy,
-          contacts: filteredContacts
+          contacts: filteredContacts,
+          writingStyle: user.writingStyleAnalyzed ? user.analyzedWritingStyle : 'Professional yet conversational',
+          aboutYou: user.aboutYou,
+          aboutYourBusiness: user.aboutYourBusiness
         }),
       });
 
@@ -587,7 +674,7 @@ const GlassSlipperApp = () => {
         
         setShowLoadingModal(false);
         setShowSuccessModal(true);
-        setSuccessMessage(`Your ${type} lead magnet has been generated successfully!`);
+        setSuccessMessage(`Your ${type} lead magnet has been generated in your unique writing style!`);
       } else {
         throw new Error('Invalid response format');
       }
@@ -603,13 +690,127 @@ const GlassSlipperApp = () => {
     const today = new Date().toDateString();
     if (dailyTasks.lastReset !== today) {
       setDailyTasks({
-        chooseIdealClients: { completed: false, count: 0, total: 5 },
+        sendDMsToClients: { completed: false, count: 0, total: 5 },
         commentOnPosts: { completed: false, count: 0, total: 10 },
         postContent: { completed: false },
         lastReset: today
       });
     }
   }, [dailyTasks.lastReset]);
+
+  // Initialize word counts
+  useEffect(() => {
+    setAboutYouWordCount(user.aboutYou.split(' ').filter(word => word.length > 0).length);
+    setAboutBusinessWordCount(user.aboutYourBusiness.split(' ').filter(word => word.length > 0).length);
+  }, [user.aboutYou, user.aboutYourBusiness]);
+
+  // Single contact enrichment function
+  const enrichSingleContact = async (contact: Contact) => {
+    setShowLoadingModal(true);
+    setLoadingMessage(`Enriching ${contact.name} with additional data...`);
+
+    try {
+      const response = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          contacts: [contact], // Single contact array
+          userProfile: {
+            targetMarket: user.targetMarket,
+            referralPartners: user.referralPartners,
+            businessType: user.businessType,
+            company: user.company
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Enrichment failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.contacts && result.contacts.length > 0) {
+        const enrichedContact = result.contacts[0];
+        
+        // Update the contact in the contacts array
+        const updatedContacts = contacts.map(c => 
+          c.id === contact.id ? enrichedContact : c
+        );
+        setContacts(updatedContacts);
+        
+        // ✅ CRITICAL: Update the selected contact for the modal
+        if (selectedContact && selectedContact.id === contact.id) {
+          setSelectedContact(enrichedContact);
+        }
+        
+        setShowLoadingModal(false);
+        setShowSuccessModal(true);
+        setSuccessMessage(`Successfully enriched ${contact.name} with additional data!`);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Single contact enrichment error:', error);
+      setShowLoadingModal(false);
+      alert(`Enrichment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Generate personalized lead magnet for specific contact
+  const generatePersonalizedLeadMagnet = async (contact: Contact) => {
+    setShowLoadingModal(true);
+    setLoadingMessage(`Generating personalized lead magnet for ${contact.name} at ${contact.company}...`);
+
+    try {
+      const response = await fetch('/api/personalized-lead-magnet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contact: contact,
+          user: user,
+          strategy: strategy.generatedStrategy,
+          writingStyle: user.writingStyleAnalyzed ? user.analyzedWritingStyle : 'Professional yet conversational',
+          aboutYou: user.aboutYou,
+          aboutYourBusiness: user.aboutYourBusiness
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Personalized lead magnet generation failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.leadMagnet) {
+        const newLeadMagnet: LeadMagnet = {
+          id: Date.now(),
+          title: result.leadMagnet.title,
+          description: result.leadMagnet.description,
+          type: 'personalized',
+          created: new Date().toLocaleDateString(),
+          downloads: 0,
+          content: result.leadMagnet.content
+        };
+        
+        setLeadMagnets(prev => [...prev, newLeadMagnet]);
+        
+        setShowLoadingModal(false);
+        setShowSuccessModal(true);
+        setSuccessMessage(`Personalized lead magnet created for ${contact.name}! Check your Lead Magnets page.`);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Personalized lead magnet generation error:', error);
+      setShowLoadingModal(false);
+      alert(`Lead magnet generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   // Contact action handlers
   const markIdealClient = (contactId: number) => {
@@ -662,6 +863,56 @@ const GlassSlipperApp = () => {
     });
   };
 
+  // Writing style analysis function
+  const analyzeWritingStyle = async () => {
+    if (totalWordCount < 2000) {
+      alert('Please write at least 2000 words total for accurate analysis');
+      return;
+    }
+
+    setShowLoadingModal(true);
+    setLoadingMessage('Analyzing your unique writing style...');
+
+    try {
+      const response = await fetch('/api/analyze-writing-style', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          aboutYou: user.aboutYou,
+          aboutYourBusiness: user.aboutYourBusiness,
+          name: user.name,
+          businessType: user.businessType
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Writing style analysis failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.analyzedStyle) {
+        setUser(prev => ({
+          ...prev,
+          analyzedWritingStyle: result.analyzedStyle,
+          writingStyleAnalyzed: true
+        }));
+        
+        setShowLoadingModal(false);
+        setShowSuccessModal(true);
+        setSuccessMessage('Your writing style has been analyzed! All future AI content will match your unique voice.');
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Writing style analysis error:', error);
+      setShowLoadingModal(false);
+      alert(`Writing style analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Auth handlers
   const handleLogin = () => {
     if (authForm.email && authForm.password) {
@@ -671,22 +922,32 @@ const GlassSlipperApp = () => {
   };
 
   const handleRegister = () => {
-    if (authForm.email && authForm.password && authForm.confirmPassword && authForm.name && authForm.company) {
+    if (authForm.email && authForm.password && authForm.confirmPassword && authForm.name && authForm.company && authForm.businessType) {
       if (authForm.password !== authForm.confirmPassword) {
         alert('Passwords do not match');
         return;
       }
-      setCurrentUser({
+      const newUser = {
         ...currentUser,
         name: authForm.name,
         email: authForm.email,
-        company: authForm.company
-      });
-      setUser({
-        ...currentUser,
-        name: authForm.name,
-        email: authForm.email,
-        company: authForm.company
+        company: authForm.company,
+        businessType: authForm.businessType,
+        aboutYou: '',
+        aboutYourBusiness: '',
+        analyzedWritingStyle: '',
+        writingStyleAnalyzed: false
+      };
+      
+      setCurrentUser(newUser);
+      setUser(newUser);
+      
+      // ✅ CRITICAL: Reset daily tasks for new user
+      setDailyTasks({
+        sendDMsToClients: { completed: false, count: 0, total: 5 },
+        commentOnPosts: { completed: false, count: 0, total: 10 },
+        postContent: { completed: false },
+        lastReset: new Date().toDateString()
       });
       setIsAuthenticated(true);
       setCurrentView('dashboard');
@@ -701,7 +962,8 @@ const GlassSlipperApp = () => {
       password: '',
       confirmPassword: '',
       name: '',
-      company: ''
+      company: '',
+      businessType: ''
     });
   };
 
@@ -719,6 +981,15 @@ const GlassSlipperApp = () => {
   const updateUserSettings = (updatedUser: User) => {
     setUser(updatedUser);
     setCurrentUser(updatedUser);
+    
+    // ✅ CRITICAL: Clear strategy if target market or business type changed
+    const targetMarketChanged = user.targetMarket !== updatedUser.targetMarket;
+    const businessTypeChanged = user.businessType !== updatedUser.businessType;
+    
+    if (targetMarketChanged || businessTypeChanged) {
+      // Clear generated strategy as it may no longer be relevant
+      setStrategy(prev => ({ ...prev, generatedStrategy: '' }));
+    }
     
     // Mark settings task as completed
     setTasks(prev => prev.map(task => 
@@ -888,6 +1159,20 @@ const GlassSlipperApp = () => {
                       onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
                       className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
                       placeholder="Enter your company name"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Business Type</label>
+                  <div className="relative">
+                    <Briefcase className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={authForm.businessType}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, businessType: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="e.g. Digital Marketing Consultant, B2B SaaS Founder, etc."
                     />
                   </div>
                 </div>
@@ -1123,14 +1408,14 @@ const GlassSlipperApp = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white bg-opacity-5 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-white">Choose Ideal Clients</h3>
+                    <h3 className="font-medium text-white">Send 5 DMs to Ideal Clients</h3>
                     <span className={`px-2 py-1 rounded-full text-xs ${
-                      dailyTasks.chooseIdealClients.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      dailyTasks.sendDMsToClients.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {dailyTasks.chooseIdealClients.count || 0}/{dailyTasks.chooseIdealClients.total || 5}
+                      {dailyTasks.sendDMsToClients.count || 0}/{dailyTasks.sendDMsToClients.total || 5}
                     </span>
                   </div>
-                  <p className="text-white text-opacity-60 text-sm">Identify contacts who fit your ideal client profile</p>
+                  <p className="text-white text-opacity-60 text-sm">Send direct messages to ideal clients and champions in your network</p>
                 </div>
 
                 <div className="bg-white bg-opacity-5 rounded-lg p-4">
@@ -1219,6 +1504,14 @@ const GlassSlipperApp = () => {
                     <Target className="w-5 h-5" />
                     <span>Build Strategy</span>
                   </button>
+                  <button
+                    onClick={categorizeContacts}
+                    disabled={enrichedContactsCount === 0}
+                    className="w-full flex items-center space-x-3 p-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Target className="w-5 h-5" />
+                    <span>Categorize by Target Market</span>
+                  </button>
                 </div>
               </div>
 
@@ -1268,6 +1561,14 @@ const GlassSlipperApp = () => {
                   <Shield className="w-4 h-4 mr-2" />
                   Enrich All
                 </button>
+                <button
+                  onClick={categorizeContacts}
+                  disabled={enrichedContactsCount === 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  <Target className="w-4 h-4 mr-2" />
+                                      Categorize by Market
+                </button>
               </div>
             </div>
 
@@ -1290,7 +1591,7 @@ const GlassSlipperApp = () => {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur [&>option]:text-gray-900 [&>option]:bg-white"
                   >
                     <option value="All">All Categories</option>
                     {categories.map(category => (
@@ -1404,12 +1705,12 @@ const GlassSlipperApp = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Who are your ideal referral partners?
+                    What is your ideal client profile?
                   </label>
                   <textarea
-                    value={strategy.idealReferralPartners}
-                    onChange={(e) => setStrategy(prev => ({ ...prev, idealReferralPartners: e.target.value }))}
-                    placeholder="Describe the types of people who would refer clients to you..."
+                    value={strategy.idealClientProfile}
+                    onChange={(e) => setStrategy(prev => ({ ...prev, idealClientProfile: e.target.value }))}
+                    placeholder="Describe your perfect client - company size, industry, decision makers, challenges they face..."
                     className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
                     rows={3}
                   />
@@ -1430,7 +1731,7 @@ const GlassSlipperApp = () => {
 
                 <button
                   onClick={generateStrategy}
-                  disabled={!strategy.oneOffer || !strategy.idealReferralPartners || !strategy.specialFactors}
+                  disabled={!strategy.oneOffer || !strategy.idealClientProfile || !strategy.specialFactors}
                   className="w-full px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   Generate Strategy
@@ -1575,18 +1876,13 @@ const GlassSlipperApp = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Business Type</label>
-                  <select
+                  <input
+                    type="text"
                     value={user.businessType}
                     onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="Consulting">Consulting</option>
-                    <option value="B2B SaaS">B2B SaaS</option>
-                    <option value="E-commerce">E-commerce</option>
-                    <option value="Professional Services">Professional Services</option>
-                    <option value="Agency">Agency</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    placeholder="Describe your business type"
+                  />
                 </div>
 
                 <div>
@@ -1621,6 +1917,88 @@ const GlassSlipperApp = () => {
                     onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
+                </div>
+              </div>
+
+              {/* Writing Style Analysis Section */}
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 mt-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Writing Style Analysis</h2>
+                <p className="text-white text-opacity-60 mb-6">
+                  Help us understand your unique voice by telling us about yourself and your business. 
+                  This analysis will personalise all AI-generated content to match your style.
+                </p>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* About You */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      About You ({aboutYouWordCount}/1250 words)
+                    </label>
+                    <textarea
+                      value={user.aboutYou}
+                      onChange={(e) => {
+                        setUser(prev => ({ ...prev, aboutYou: e.target.value }));
+                        setAboutYouWordCount(e.target.value.split(' ').filter(word => word.length > 0).length);
+                      }}
+                      className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
+                      rows={12}
+                      placeholder="Tell us about your background, experience, values, personality, and what drives you professionally. How do you approach relationships? What's your story? This helps us understand your unique voice and perspective..."
+                    />
+                  </div>
+
+                  {/* About Your Business */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      About Your Business ({aboutBusinessWordCount}/1250 words)
+                    </label>
+                    <textarea
+                      value={user.aboutYourBusiness}
+                      onChange={(e) => {
+                        setUser(prev => ({ ...prev, aboutYourBusiness: e.target.value }));
+                        setAboutBusinessWordCount(e.target.value.split(' ').filter(word => word.length > 0).length);
+                      }}
+                      className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
+                      rows={12}
+                      placeholder="Describe your business philosophy, approach to clients, what makes you different, your methodology, success stories, and how you communicate value. What's your business personality? How do you build trust?..."
+                    />
+                  </div>
+                </div>
+
+                {/* Analysis Section */}
+                <div className="mt-6">
+                  {!user.writingStyleAnalyzed ? (
+                    <div className="text-center">
+                      <button
+                        onClick={analyzeWritingStyle}
+                        disabled={totalWordCount < 2000}
+                        className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      >
+                        {totalWordCount < 2000 
+                          ? `Need ${2000 - totalWordCount} more words to analyze` 
+                          : 'Analyze My Writing Style'}
+                      </button>
+                      <p className="text-white text-opacity-60 text-sm mt-2">
+                        Total: {totalWordCount}/2500 words (minimum 2000 required)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-green-500 bg-opacity-20 rounded-lg p-4">
+                      <h3 className="text-white font-semibold mb-2">✓ Writing Style Analyzed</h3>
+                      <p className="text-white text-opacity-80 text-sm mb-3">
+                        Your unique writing style has been analyzed and will be used for all AI-generated content.
+                      </p>
+                      <details className="text-white text-opacity-70">
+                        <summary className="cursor-pointer font-medium">View Analysis</summary>
+                        <div className="mt-2 text-sm whitespace-pre-wrap">{user.analyzedWritingStyle}</div>
+                      </details>
+                      <button
+                        onClick={analyzeWritingStyle}
+                        className="mt-3 px-4 py-2 bg-white bg-opacity-10 text-white rounded-lg hover:bg-opacity-20 transition-colors text-sm"
+                      >
+                        Re-analyze Style
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1708,32 +2086,37 @@ const GlassSlipperApp = () => {
                 }`}>
                   {selectedContact.category}
                 </span>
+                {selectedContact.categoryReason && (
+                  <p className="text-xs text-gray-500 mt-1 italic">
+                    {selectedContact.categoryReason}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Daily Task Actions */}
+            {/* Contact Actions */}
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Daily Actions</h4>
-              <div className="flex space-x-2">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Contact Actions</h4>
+              <div className="flex space-x-3">
                 <button
                   onClick={() => {
-                    markIdealClient(selectedContact.id);
-                    closeModals();
+                    enrichSingleContact(selectedContact);
                   }}
-                  disabled={contactTasks[selectedContact.id]?.idealClient?.completed}
-                  className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selectedContact.isEnriched}
+                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
-                  {contactTasks[selectedContact.id]?.idealClient?.completed ? '✓ Marked' : 'Mark as Ideal'}
+                  <Shield className="w-4 h-4 mr-2" />
+                  {selectedContact.isEnriched ? 'Already Enriched' : 'Enrich Contact'}
                 </button>
                 <button
                   onClick={() => {
-                    commentOnPost(selectedContact.id);
+                    generatePersonalizedLeadMagnet(selectedContact);
                     closeModals();
                   }}
-                  disabled={contactTasks[selectedContact.id]?.commentOnPost?.completed}
-                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center"
                 >
-                  {contactTasks[selectedContact.id]?.commentOnPost?.completed ? '✓ Commented' : 'Comment on Post'}
+                  <Zap className="w-4 h-4 mr-2" />
+                  Generate Lead Magnet
                 </button>
               </div>
             </div>
