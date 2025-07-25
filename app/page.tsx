@@ -210,40 +210,105 @@ const GlassSlipperApp = () => {
     { view: 'profile', label: 'Profile', icon: User }
   ];
 
-  // Parse CSV contacts
-  const parseContactsFromCSV = useCallback((csvText: string): Contact[] => {
-    const lines = csvText.split('\n').filter(line => line.trim().length > 0);
-    if (lines.length < 2) return [];
+  // Helper function to check if a string looks like a job title
+  const looksLikeJobTitle = (str: string): boolean => {
+    if (!str || str.length < 2) return false;
+    
+    const jobTitleWords = [
+      'manager', 'director', 'ceo', 'cto', 'cfo', 'president', 'vp', 'head', 'lead', 'senior', 'junior',
+      'analyst', 'consultant', 'specialist', 'coordinator', 'executive', 'officer', 'engineer', 
+      'developer', 'designer', 'marketer', 'sales', 'founder', 'owner', 'partner', 'associate'
+    ];
+    
+    const lowerStr = str.toLowerCase();
+    return jobTitleWords.some(word => lowerStr.includes(word)) || 
+           /\b(jr|sr|ii|iii|iv)\b/i.test(str) ||
+           str.includes('&') && str.length < 50; // Likely a position if contains & and not too long
+  };
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  // Helper function to validate enriched company data
+  const validateEnrichedCompany = (enrichedCompany: string, originalCompany: string): string => {
+    // If enriched company looks suspicious (too long, has weird characters), keep original
+    if (enrichedCompany && enrichedCompany.length > 100) {
+      console.warn(`⚠️ Enriched company "${enrichedCompany}" seems too long, keeping original: "${originalCompany}"`);
+      return originalCompany;
+    }
+    // If enriched company is valid, use it; otherwise keep original
+    return enrichedCompany && enrichedCompany !== 'Not found' ? enrichedCompany : originalCompany;
+  };
+
+  const validateEnrichedPosition = (enrichedPosition: string, originalPosition: string): string => {
+    // If enriched position looks like a company name, keep original
+    if (enrichedPosition && !looksLikeJobTitle(enrichedPosition) && enrichedPosition.length > 3) {
+      console.warn(`⚠️ Enriched position "${enrichedPosition}" doesn't look like job title, keeping original: "${originalPosition}"`);
+      return originalPosition;
+    }
+    // If enriched position is valid, use it; otherwise keep original
+    return enrichedPosition && enrichedPosition !== 'Not found' ? enrichedPosition : originalPosition;
+  };
+
+  // Auto-categorization based on business settings
+  const getAutomaticCategory = (contact: Contact, userBusinessType: string): string => {
+    // Map business types to likely contact categories
+    const businessTypeMapping: { [key: string]: { [key: string]: string } } = {
+      'B2B SaaS': {
+        'technology': 'Ideal Client',
+        'software': 'Ideal Client', 
+        'digital': 'Ideal Client',
+        'financial services': 'Champions', // Like wealth managers who serve tech companies
+        'consulting': 'Referral Partners'
+      },
+      'Consulting': {
+        'consulting': 'Competitors',
+        'business': 'Ideal Client',
+        'finance': 'Champions'
+      }
+    };
+    
+    const mapping = businessTypeMapping[userBusinessType];
+    if (mapping && contact.industry) {
+      const industryKey = contact.industry.toLowerCase();
+      return mapping[industryKey] || 'Uncategorised';
+    }
+    
+    return 'Uncategorised';
+  };
+
+  // STAGE 1 FIX: Enhanced contact parsing with better field validation
+  const parseContactsFromCSV = useCallback((csvText: string): Contact[] => {
+    console.log('🔍 PARSING: Starting CSV parsing...');
+    const lines = csvText.split('\n').filter((line: string) => line.trim());
+    if (lines.length === 0) return [];
+
+    const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
+    console.log('🔍 PARSING: Headers found:', headers);
+    
     const contacts: Contact[] = [];
 
-    console.log('🔍 PARSING: Found headers:', headers);
-
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      const values = lines[i].split(',').map((v: string) => v.trim().replace(/"/g, ''));
       
+      if (values.length < headers.length) continue;
+
+      // STAGE 1 FIX: More robust field mapping with validation
       const contact: Contact = {
         id: Date.now() + i,
         name: '',
         company: '',
         position: '',
         email: '',
-        isEnriched: false
+        category: 'Uncategorised'
       };
 
-      headers.forEach((header, index) => {
+      // Map CSV fields to contact properties with validation
+      headers.forEach((header: string, index: number) => {
         const value = values[index] || '';
         const lowerHeader = header.toLowerCase();
-        
-        // First name field
-        if (lowerHeader.includes('first name') || lowerHeader === 'first') {
+
+        // Name fields
+        if (lowerHeader.includes('first name') || lowerHeader.includes('firstname')) {
           contact.name = value;
-        }
-        
-        // Last name field  
-        if (lowerHeader.includes('last name') || lowerHeader === 'last') {
-          const value = values[index] || '';
+        } else if (lowerHeader.includes('last name') || lowerHeader.includes('lastname') || lowerHeader.includes('surname')) {
           contact.name = contact.name ? `${contact.name} ${value}` : value;
           contact.lastName = value;
         }
@@ -337,8 +402,13 @@ const GlassSlipperApp = () => {
       return;
     }
 
+    if (!user.targetMarket || !user.referralPartners) {
+      alert('Please complete your profile (Target Market and Referral Partners) before categorizing contacts.');
+      return;
+    }
+
     setShowLoadingModal(true);
-    setLoadingMessage('Categorizing contacts using AI analysis...');
+    setLoadingMessage(`Analyzing ${enrichedContacts.length} contacts by target market companies...`);
 
     try {
       const response = await fetch('/api/categorize', {
@@ -364,16 +434,24 @@ const GlassSlipperApp = () => {
       const result = await response.json();
 
       if (result.success && result.contacts) {
-        // Update contacts with categories
+        // Update contacts with new categories
         const updatedContacts = contacts.map(contact => {
           const categorizedContact = result.contacts.find((c: Contact) => c.id === contact.id);
-          return categorizedContact || contact;
+          if (categorizedContact) {
+            return {
+              ...contact,
+              category: categorizedContact.category,
+              categoryReason: categorizedContact.categoryReason
+            };
+          }
+          return contact;
         });
-        
+
         setContacts(updatedContacts);
+        
         setShowLoadingModal(false);
         setShowSuccessModal(true);
-        setSuccessMessage(`Successfully categorized ${result.contacts.length} contacts!`);
+        setSuccessMessage(`Successfully categorized ${result.contacts.length} contacts based on target market analysis!`);
       } else {
         throw new Error('Invalid response format');
       }
@@ -384,17 +462,19 @@ const GlassSlipperApp = () => {
     }
   };
 
-  // Enrich contacts function
+  // Contact enrichment function
   const enrichContacts = async () => {
     if (contacts.length === 0) {
-      alert('No contacts to enrich. Please upload a CSV file first.');
+      alert('Please upload contacts first');
       return;
     }
 
     setShowLoadingModal(true);
-    setLoadingMessage('Enriching contacts with real business data...');
+    setLoadingMessage('Enriching contact data with real information...');
 
     try {
+      console.log('🔍 ENRICHMENT: Starting enrichment for', contacts.length, 'contacts');
+      
       const response = await fetch('/api/enrich', {
         method: 'POST',
         headers: {
@@ -416,16 +496,70 @@ const GlassSlipperApp = () => {
       }
 
       const result = await response.json();
+      console.log('🔍 ENRICHMENT: Received result:', result);
 
       if (result.success && result.contacts) {
-        setContacts(result.contacts);
+        const updatedContacts = contacts.map((contact: Contact) => {
+          const enrichedData = result.contacts.find((ec: Contact) => ec.id === contact.id);
+          if (enrichedData) {
+            console.log(`🔍 ENRICHMENT: Processing enriched data for ${contact.name}:`, enrichedData);
+            
+            // STAGE 1 FIX: Rigorous field validation before applying enriched data
+            const updatedContact = {
+              ...contact,
+              isEnriched: true,
+              // CRITICAL: Always preserve original email
+              email: contact.email,
+              // Validate enriched fields make sense
+              lastName: enrichedData.lastName || undefined,
+              phone: enrichedData.phone || 'Not found',
+              website: enrichedData.website || 'Not found',
+              industry: enrichedData.industry || 'Not found',
+              // Use Claude's categorisation decision
+              category: enrichedData.category || contact.category,
+              // STAGE 1 FIX: Only update company/position if enriched data is logically valid
+              company: validateEnrichedCompany(enrichedData.company, contact.company),
+              position: validateEnrichedPosition(enrichedData.position, contact.position)
+            };
+
+            // STAGE 1 FIX: Final validation check
+            if (updatedContact.email !== contact.email) {
+              console.error(`🚨 CRITICAL: Email mismatch detected for ${contact.name}!`);
+              console.error(`Original: ${contact.email}, Updated: ${updatedContact.email}`);
+              updatedContact.email = contact.email; // Force restore original email
+            }
+
+            // STAGE 1 FIX: Log final contact state for verification
+            console.log(`✅ ENRICHMENT: Final enriched contact for ${contact.name}:`, {
+              originalEmail: contact.email,
+              finalEmail: updatedContact.email,
+              originalCompany: contact.company,
+              finalCompany: updatedContact.company,
+              originalPosition: contact.position,
+              finalPosition: updatedContact.position,
+              enrichedData: {
+                phone: updatedContact.phone,
+                website: updatedContact.website,
+                industry: updatedContact.industry,
+                category: updatedContact.category
+              }
+            });
+
+            return updatedContact;
+          }
+          return contact;
+        });
+
+        setContacts(updatedContacts);
+        
+        // Mark enrichment task as completed
         setTasks(prev => prev.map(task => 
           task.id === 3 ? { ...task, completed: true } : task
         ));
         
         setShowLoadingModal(false);
         setShowSuccessModal(true);
-        setSuccessMessage(`Successfully enriched ${result.contacts.length} contacts with business data!`);
+        setSuccessMessage(`Successfully enriched ${updatedContacts.filter(c => c.isEnriched).length} contacts with additional data.`);
       } else {
         throw new Error('Invalid response format');
       }
@@ -436,15 +570,15 @@ const GlassSlipperApp = () => {
     }
   };
 
-  // Generate strategy function
+  // Strategy generation
   const generateStrategy = async () => {
     if (!strategy.oneOffer || !strategy.idealClientProfile || !strategy.specialFactors) {
-      alert('Please fill in all strategy fields before generating.');
+      alert('Please fill in all strategy fields');
       return;
     }
 
     setShowLoadingModal(true);
-    setLoadingMessage('Generating your personalized referral strategy...');
+    setLoadingMessage('Generating personalised referral strategy with your business insights...');
 
     try {
       const response = await fetch('/api/strategy', {
@@ -453,8 +587,12 @@ const GlassSlipperApp = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...strategy,
           user,
+          strategy: {
+            oneOffer: strategy.oneOffer,
+            idealClientProfile: strategy.idealClientProfile,
+            specialFactors: strategy.specialFactors
+          },
           contacts: filteredContacts,
           writingStyle: user.writingStyleAnalyzed ? user.analyzedWritingStyle : 'Professional yet conversational',
           aboutYou: user.aboutYou,
@@ -470,13 +608,15 @@ const GlassSlipperApp = () => {
       
       if (result.success && result.strategy) {
         setStrategy(prev => ({ ...prev, generatedStrategy: result.strategy }));
+        
+        // Mark strategy task as completed
         setTasks(prev => prev.map(task => 
           task.id === 4 ? { ...task, completed: true } : task
         ));
         
         setShowLoadingModal(false);
         setShowSuccessModal(true);
-        setSuccessMessage('Your personalized referral strategy has been generated!');
+        setSuccessMessage('Your personalised referral strategy has been generated with deep business insights!');
       } else {
         throw new Error('Invalid response format');
       }
@@ -487,74 +627,10 @@ const GlassSlipperApp = () => {
     }
   };
 
-  // Close modals function
-  const closeModals = () => {
-    setShowContactModal(false);
-    setShowLoadingModal(false);
-    setShowSuccessModal(false);
-    setShowLeadMagnetModal(false);
-    setSelectedContact(null);
-    setSelectedLeadMagnet(null);
-  };
-
-  // Auth handlers
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthenticated(true);
-    setCurrentView('dashboard');
-  };
-
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (authForm.password !== authForm.confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-
-    const newUser: User = {
-      name: authForm.name,
-      email: authForm.email,
-      company: authForm.company,
-      businessType: authForm.businessType,
-      targetMarket: '',
-      writingStyle: 'Professional yet conversational',
-      referralPartners: '',
-      aboutYou: '',
-      aboutYourBusiness: '',
-      analyzedWritingStyle: '',
-      writingStyleAnalyzed: false
-    };
-
-    setCurrentUser(newUser);
-    setUser(newUser);
-    setIsAuthenticated(true);
-    setCurrentView('dashboard');
-
-    // Reset daily tasks for new user
-    setDailyTasks({
-      sendDMsToClients: { completed: false, count: 0, total: 5 },
-      commentOnPosts: { completed: false, count: 0, total: 10 },
-      postContent: { completed: false },
-      lastReset: new Date().toDateString()
-    });
-  };
-
-  const updateUserSettings = (updatedUser: User) => {
-    setUser(updatedUser);
-    setCurrentUser(updatedUser);
-    setTasks(prev => prev.map(task => 
-      task.id === 2 ? { ...task, completed: true } : task
-    ));
-    
-    setShowSuccessModal(true);
-    setSuccessMessage('Profile settings updated successfully!');
-  };
-
-  // Generate lead magnet function
-  const generateLeadMagnet = async (type: 'checklist' | 'guide') => {
+  // Lead magnet generation
+  const generateLeadMagnet = async (type: string) => {
     setShowLoadingModal(true);
-    setLoadingMessage(`Generating ${type} lead magnet...`);
+    setLoadingMessage(`Generating ${type} lead magnet in your unique style...`);
 
     try {
       const response = await fetch('/api/lead-magnets', {
@@ -591,6 +667,8 @@ const GlassSlipperApp = () => {
         };
         
         setLeadMagnets(prev => [...prev, newLeadMagnet]);
+        
+        // Mark lead magnet task as completed
         setTasks(prev => prev.map(task => 
           task.id === 5 ? { ...task, completed: true } : task
         ));
@@ -855,56 +933,145 @@ const GlassSlipperApp = () => {
     }
   };
 
-  // If not authenticated, show landing/auth
+  // Auth handlers
+  const handleLogin = () => {
+    if (authForm.email && authForm.password) {
+      setIsAuthenticated(true);
+      setCurrentView('dashboard');
+    }
+  };
+
+  const handleRegister = () => {
+    if (authForm.email && authForm.password && authForm.confirmPassword && authForm.name && authForm.company && authForm.businessType) {
+      if (authForm.password !== authForm.confirmPassword) {
+        alert('Passwords do not match');
+        return;
+      }
+      const newUser = {
+        ...currentUser,
+        name: authForm.name,
+        email: authForm.email,
+        company: authForm.company,
+        businessType: authForm.businessType,
+        aboutYou: '',
+        aboutYourBusiness: '',
+        analyzedWritingStyle: '',
+        writingStyleAnalyzed: false
+      };
+      
+      setCurrentUser(newUser);
+      setUser(newUser);
+      
+      // ✅ CRITICAL: Reset daily tasks for new user
+      setDailyTasks({
+        sendDMsToClients: { completed: false, count: 0, total: 5 },
+        commentOnPosts: { completed: false, count: 0, total: 10 },
+        postContent: { completed: false },
+        lastReset: new Date().toDateString()
+      });
+      setIsAuthenticated(true);
+      setCurrentView('dashboard');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setAuthView('landing');
+    setAuthForm({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      name: '',
+      company: '',
+      businessType: ''
+    });
+  };
+
+  // Modal handlers
+  const closeModals = () => {
+    setShowContactModal(false);
+    setShowLoadingModal(false);
+    setShowSuccessModal(false);
+    setShowLeadMagnetModal(false);
+    setSelectedContact(null);
+    setSelectedLeadMagnet(null);
+  };
+
+  // User settings update
+  const updateUserSettings = (updatedUser: User) => {
+    setUser(updatedUser);
+    setCurrentUser(updatedUser);
+    
+    // ✅ CRITICAL: Clear strategy if target market or business type changed
+    const targetMarketChanged = user.targetMarket !== updatedUser.targetMarket;
+    const businessTypeChanged = user.businessType !== updatedUser.businessType;
+    
+    if (targetMarketChanged || businessTypeChanged) {
+      // Clear generated strategy as it may no longer be relevant
+      setStrategy(prev => ({ ...prev, generatedStrategy: '' }));
+    }
+    
+    // Mark settings task as completed
+    setTasks(prev => prev.map(task => 
+      task.id === 2 ? { ...task, completed: true } : task
+    ));
+    
+    setShowSuccessModal(true);
+    setSuccessMessage('Profile settings updated successfully!');
+  };
+
+  // Landing page component
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-6xl">
+        <div className="max-w-4xl w-full">
           {authView === 'landing' && (
             <div className="text-center">
               <div className="mb-8">
                 <div className="flex items-center justify-center mb-6">
-                  <Sparkles className="w-16 h-16 text-yellow-400 mr-4" />
-                  <h1 className="text-5xl font-bold text-white">Glass Slipper</h1>
+                  <Sparkles className="w-12 h-12 text-yellow-400 mr-3" />
+                  <h1 className="text-4xl md:text-6xl font-bold text-white">Glass Slipper</h1>
                 </div>
-                <p className="text-xl text-white text-opacity-80 mb-8 max-w-2xl mx-auto">
-                  Transform your LinkedIn contacts into a strategic referral network with AI-powered insights and personalized outreach
+                <p className="text-xl md:text-2xl text-white text-opacity-80 mb-8">
+                  Transform your business contacts into referral gold
                 </p>
-                
-                <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                  <button
-                    onClick={() => setAuthView('login')}
-                    className="px-8 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
-                  >
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => setAuthView('register')}
-                    className="px-8 py-3 bg-white bg-opacity-10 text-white rounded-lg hover:bg-opacity-20 transition-colors font-semibold border border-white border-opacity-30"
-                  >
-                    Get Started Free
-                  </button>
-                </div>
+                <p className="text-lg text-white text-opacity-60 mb-12 max-w-2xl mx-auto">
+                  Upload your LinkedIn contacts, enrich them with real data, and get AI-powered strategies to turn them into your most valuable referral partners.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-                  <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                    <Shield className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">Smart Enrichment</h3>
-                    <p className="text-white text-opacity-70">Automatically enhance your contacts with real business data and intelligent categorization</p>
-                  </div>
-                  
-                  <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                    <Target className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">AI Strategy</h3>
-                    <p className="text-white text-opacity-70">Generate personalized referral strategies based on your network and business goals</p>
-                  </div>
-                  
-                  <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
-                    <Zap className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">Content Generation</h3>
-                    <p className="text-white text-opacity-70">Create custom lead magnets and outreach messages that convert</p>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                  <Upload className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Upload Contacts</h3>
+                  <p className="text-white text-opacity-60">Import your LinkedIn CSV file in seconds</p>
                 </div>
+                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                  <Shield className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Enrich Data</h3>
+                  <p className="text-white text-opacity-60">Get real phone numbers, websites, and insights</p>
+                </div>
+                <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
+                  <Target className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Generate Strategy</h3>
+                  <p className="text-white text-opacity-60">AI creates your personalised referral plan</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() => setAuthView('register')}
+                  className="px-8 py-3 bg-yellow-400 text-purple-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors flex items-center justify-center"
+                >
+                  Get Started Free
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </button>
+                <button
+                  onClick={() => setAuthView('login')}
+                  className="px-8 py-3 bg-white bg-opacity-10 text-white rounded-lg font-semibold hover:bg-opacity-20 transition-colors backdrop-blur"
+                >
+                  Sign In
+                </button>
               </div>
             </div>
           )}
@@ -912,23 +1079,22 @@ const GlassSlipperApp = () => {
           {authView === 'login' && (
             <div className="max-w-md mx-auto bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
               <div className="text-center mb-8">
-                <Sparkles className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
+                <Sparkles className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
                 <p className="text-white text-opacity-60">Sign in to your Glass Slipper account</p>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-6">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Mail className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
                     <input
                       type="email"
                       value={authForm.email}
                       onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
-                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
                       placeholder="Enter your email"
-                      required
                     />
                   </div>
                 </div>
@@ -936,19 +1102,18 @@ const GlassSlipperApp = () => {
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Lock className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={authForm.password}
                       onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                      className="w-full pl-10 pr-10 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                      className="w-full pl-10 pr-10 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
                       placeholder="Enter your password"
-                      required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-white"
+                      className="absolute right-3 top-3 text-white text-opacity-40 hover:text-opacity-60"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -956,30 +1121,27 @@ const GlassSlipperApp = () => {
                 </div>
 
                 <button
-                  type="submit"
-                  className="w-full bg-yellow-400 text-purple-900 py-2 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
+                  onClick={handleLogin}
+                  className="w-full py-2 bg-yellow-400 text-purple-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
                 >
                   Sign In
                 </button>
-              </form>
 
-              <div className="text-center mt-6">
-                <p className="text-white text-opacity-60 text-sm">
-                  Don't have an account?{' '}
+                <div className="text-center">
                   <button
                     onClick={() => setAuthView('register')}
-                    className="text-yellow-400 hover:text-yellow-300"
+                    className="text-yellow-400 hover:text-yellow-300 text-sm"
                   >
-                    Sign up here
+                    Don't have an account? Sign up
                   </button>
-                </p>
-                <br />
-                <button
-                  onClick={() => setAuthView('landing')}
-                  className="text-white text-opacity-60 hover:text-opacity-80 text-sm mt-2"
-                >
-                  Back to home
-                </button>
+                  <br />
+                  <button
+                    onClick={() => setAuthView('landing')}
+                    className="text-white text-opacity-60 hover:text-opacity-80 text-sm mt-2"
+                  >
+                    Back to home
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -987,100 +1149,117 @@ const GlassSlipperApp = () => {
           {authView === 'register' && (
             <div className="max-w-md mx-auto bg-white bg-opacity-10 backdrop-blur rounded-xl p-8">
               <div className="text-center mb-8">
-                <Sparkles className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-white mb-2">Get Started</h2>
+                <Sparkles className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-white">Get Started</h2>
                 <p className="text-white text-opacity-60">Create your Glass Slipper account</p>
               </div>
 
-              <form onSubmit={handleRegister} className="space-y-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={authForm.name}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={authForm.email}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="Enter your email"
-                    required
-                  />
+                  <div className="relative">
+                    <User className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={authForm.name}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Company</label>
-                  <input
-                    type="text"
-                    value={authForm.company}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="Your company name"
-                    required
-                  />
+                  <div className="relative">
+                    <Building className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={authForm.company}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, company: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="Enter your company name"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Business Type</label>
-                  <input
-                    type="text"
-                    value={authForm.businessType}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, businessType: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="e.g., Digital Marketing Consultant, B2B SaaS Founder, etc."
-                    required
-                  />
+                  <div className="relative">
+                    <Briefcase className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={authForm.businessType}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, businessType: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="e.g. Digital Marketing Consultant, B2B SaaS Founder, etc."
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="Enter your email"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="Create a password"
-                    required
-                  />
+                  <div className="relative">
+                    <Lock className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full pl-10 pr-10 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="Create a password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3 text-white text-opacity-40 hover:text-opacity-60"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={authForm.confirmPassword}
-                    onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    placeholder="Confirm your password"
-                    required
-                  />
+                  <div className="relative">
+                    <Lock className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={authForm.confirmPassword}
+                      onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
+                      placeholder="Confirm your password"
+                    />
+                  </div>
                 </div>
+
+                <button
+                  onClick={handleRegister}
+                  className="w-full py-2 bg-yellow-400 text-purple-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
+                >
+                  Create Account
+                </button>
 
                 <div className="text-center">
                   <button
-                    type="submit"
-                    className="w-full bg-yellow-400 text-purple-900 py-2 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
+                    onClick={() => setAuthView('login')}
+                    className="text-yellow-400 hover:text-yellow-300 text-sm"
                   >
-                    Create Account
+                    Already have an account? Sign in
                   </button>
-                  <p className="text-white text-opacity-60 text-sm mt-4">
-                    Already have an account?{' '}
-                    <button
-                      onClick={() => setAuthView('login')}
-                      className="text-yellow-400 hover:text-yellow-300"
-                    >
-                      Sign in
-                    </button>
-                  </p>
                   <br />
                   <button
                     onClick={() => setAuthView('landing')}
@@ -1128,8 +1307,55 @@ const GlassSlipperApp = () => {
                 );
               })}
             </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="hidden md:flex items-center space-x-2 text-white">
+                <User className="w-5 h-5" />
+                <span>{currentUser.name}</span>
+              </div>
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden text-white hover:text-yellow-400"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-white hover:text-yellow-400 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {showMobileMenu && (
+          <div className="md:hidden bg-white bg-opacity-10 backdrop-blur border-t border-white border-opacity-20">
+            <div className="px-4 py-2 space-y-1">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.view}
+                    onClick={() => {
+                      setCurrentView(item.view);
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                      currentView === item.view
+                        ? 'bg-yellow-400 text-purple-900'
+                        : 'text-white hover:bg-white hover:bg-opacity-10'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -1196,27 +1422,42 @@ const GlassSlipperApp = () => {
               </div>
             </div>
 
-            {/* Daily Tasks - CLEANED VERSION (NO INDICATORS) */}
+            {/* Daily Tasks */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
               <h2 className="text-xl font-semibold text-white mb-4">Today's Tasks</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white bg-opacity-5 rounded-lg p-4">
-                  <div className="mb-2">
-                    <h3 className="font-medium text-white">Send DMs to Ideal Clients</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium text-white">Send 5 DMs to Ideal Clients</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      dailyTasks.sendDMsToClients.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {dailyTasks.sendDMsToClients.count || 0}/{dailyTasks.sendDMsToClients.total || 5}
+                    </span>
                   </div>
                   <p className="text-white text-opacity-60 text-sm">Send direct messages to ideal clients and champions in your network</p>
                 </div>
 
                 <div className="bg-white bg-opacity-5 rounded-lg p-4">
-                  <div className="mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-white">Comment on Posts</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      dailyTasks.commentOnPosts.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {dailyTasks.commentOnPosts.count || 0}/{dailyTasks.commentOnPosts.total || 10}
+                    </span>
                   </div>
                   <p className="text-white text-opacity-60 text-sm">Engage with your contacts' LinkedIn content</p>
                 </div>
 
                 <div className="bg-white bg-opacity-5 rounded-lg p-4">
-                  <div className="mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-white">Post Content</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      dailyTasks.postContent.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {dailyTasks.postContent.completed ? 'Done' : 'Pending'}
+                    </span>
                   </div>
                   <p className="text-white text-opacity-60 text-sm">Share valuable content on your LinkedIn</p>
                 </div>
@@ -1283,30 +1524,36 @@ const GlassSlipperApp = () => {
                     <Target className="w-5 h-5" />
                     <span>Build Strategy</span>
                   </button>
+                  <button
+                    onClick={categorizeContacts}
+                    disabled={enrichedContactsCount === 0}
+                    className="w-full flex items-center space-x-3 p-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Target className="w-5 h-5" />
+                    <span>Categorize by Target Market</span>
+                  </button>
                 </div>
               </div>
 
               <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">Recent Activity</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-3 bg-white bg-opacity-5 rounded-lg">
-                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-white text-sm font-medium">Profile updated</p>
-                      <p className="text-white text-opacity-60 text-xs">2 hours ago</p>
-                    </div>
+                  <div className="flex items-center space-x-3 text-white text-opacity-60">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm">Welcome to Glass Slipper!</span>
                   </div>
-                  <div className="flex items-center space-x-3 p-3 bg-white bg-opacity-5 rounded-lg">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
+                  {contacts.length > 0 && (
+                    <div className="flex items-center space-x-3 text-white text-opacity-60">
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm">Uploaded {contacts.length} contacts</span>
                     </div>
-                    <div>
-                      <p className="text-white text-sm font-medium">Contacts imported</p>
-                      <p className="text-white text-opacity-60 text-xs">1 day ago</p>
+                  )}
+                  {contacts.filter(c => c.isEnriched).length > 0 && (
+                    <div className="flex items-center space-x-3 text-white text-opacity-60">
+                      <Shield className="w-4 h-4" />
+                      <span className="text-sm">Enriched {contacts.filter(c => c.isEnriched).length} contacts</span>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1340,7 +1587,7 @@ const GlassSlipperApp = () => {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   <Target className="w-4 h-4 mr-2" />
-                  Categorize by Market
+                                      Categorize by Market
                 </button>
               </div>
             </div>
@@ -1350,13 +1597,13 @@ const GlassSlipperApp = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Search className="w-5 h-5 text-white text-opacity-40 absolute left-3 top-3" />
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Search contacts..."
-                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur"
                     />
                   </div>
                 </div>
@@ -1364,7 +1611,7 @@ const GlassSlipperApp = () => {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur [&>option]:text-gray-900 [&>option]:bg-white"
                   >
                     <option value="All">All Categories</option>
                     {categories.map(category => (
@@ -1375,7 +1622,7 @@ const GlassSlipperApp = () => {
               </div>
             </div>
 
-            {/* Contacts List */}
+            {/* Contacts Table */}
             <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl overflow-hidden">
               {filteredContacts.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -1470,7 +1717,7 @@ const GlassSlipperApp = () => {
                   <textarea
                     value={strategy.oneOffer}
                     onChange={(e) => setStrategy(prev => ({ ...prev, oneOffer: e.target.value }))}
-                    placeholder="Describe the main service or solution you provide..."
+                    placeholder="Describe your main service or product..."
                     className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
                     rows={3}
                   />
@@ -1491,7 +1738,7 @@ const GlassSlipperApp = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    What makes you special?
+                    What makes you special or different?
                   </label>
                   <textarea
                     value={strategy.specialFactors}
@@ -1562,20 +1809,18 @@ const GlassSlipperApp = () => {
                         <h3 className="text-lg font-semibold text-white mb-2">{magnet.title}</h3>
                         <p className="text-white text-opacity-60 text-sm mb-4">{magnet.description}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        magnet.type === 'checklist' ? 'bg-green-100 text-green-800' :
-                        magnet.type === 'guide' ? 'bg-blue-100 text-blue-800' :
-                        'bg-purple-100 text-purple-800'
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        magnet.type === 'checklist' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
                       }`}>
                         {magnet.type}
                       </span>
                     </div>
                     
-                    <div className="flex items-center justify-between text-white text-opacity-60 text-sm mb-4">
+                    <div className="flex items-center justify-between text-sm text-white text-opacity-60 mb-4">
                       <span>Created: {magnet.created}</span>
                       <span>{magnet.downloads} downloads</span>
                     </div>
-                    
+
                     <button
                       onClick={() => {
                         setSelectedLeadMagnet(magnet);
@@ -1592,8 +1837,8 @@ const GlassSlipperApp = () => {
               <div className="text-center py-12">
                 <Zap className="w-12 h-12 text-white text-opacity-40 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-white mb-2">No lead magnets yet</h3>
-                <p className="text-white text-opacity-60 mb-6">Generate your first lead magnet to get started</p>
-                <div className="flex justify-center space-x-3">
+                <p className="text-white text-opacity-60 mb-6">Generate your first lead magnet to attract referral partners</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     onClick={() => generateLeadMagnet('checklist')}
                     className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors"
@@ -1655,105 +1900,126 @@ const GlassSlipperApp = () => {
                     type="text"
                     value={user.businessType}
                     onChange={(e) => setUser(prev => ({ ...prev, businessType: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="Describe your business type"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Target Market</label>
+                  <input
+                    type="text"
+                    value={user.targetMarket}
+                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Target Market</label>
-                  <textarea
-                    value={user.targetMarket}
-                    onChange={(e) => setUser(prev => ({ ...prev, targetMarket: e.target.value }))}
-                    placeholder="Describe your target market and ideal clients..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                    rows={3}
-                  />
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Writing Style</label>
+                  <select
+                    value={user.writingStyle}
+                    onChange={(e) => setUser(prev => ({ ...prev, writingStyle: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="Professional yet conversational">Professional yet conversational</option>
+                    <option value="Formal and authoritative">Formal and authoritative</option>
+                    <option value="Casual and friendly">Casual and friendly</option>
+                    <option value="Technical and detailed">Technical and detailed</option>
+                  </select>
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Referral Partners</label>
-                  <textarea
+                  <input
+                    type="text"
                     value={user.referralPartners}
                     onChange={(e) => setUser(prev => ({ ...prev, referralPartners: e.target.value }))}
-                    placeholder="Describe the types of people who could refer business to you..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
               </div>
 
               {/* Writing Style Analysis Section */}
-              <div className="mt-8 pt-8 border-t border-gray-200">
-                <h3 className="text-lg font-semibold text-white mb-4">Writing Style Analysis</h3>
-                <p className="text-white text-opacity-70 text-sm mb-6">
-                  Help us understand your unique voice by writing about yourself and your business. 
-                  We need at least 2000 words total to create an accurate style guide for all AI-generated content.
+              <div className="bg-white bg-opacity-10 backdrop-blur rounded-xl p-6 mt-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Writing Style Analysis</h2>
+                <p className="text-white text-opacity-60 mb-6">
+                  Help us understand your unique voice by telling us about yourself and your business. 
+                  This analysis will personalise all AI-generated content to match your style.
                 </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* About You */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      About You ({aboutYouWordCount} words)
+                    <label className="block text-sm font-medium text-white mb-2">
+                      About You ({aboutYouWordCount}/1250 words)
                     </label>
                     <textarea
                       value={user.aboutYou}
-                      onChange={(e) => setUser(prev => ({ ...prev, aboutYou: e.target.value }))}
-                      placeholder="Write about your background, experience, personality, values, and what drives you professionally. Share your story, your journey, and what makes you unique. Aim for around 1250 words."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                      onChange={(e) => {
+                        setUser(prev => ({ ...prev, aboutYou: e.target.value }));
+                        setAboutYouWordCount(e.target.value.split(' ').filter(word => word.length > 0).length);
+                      }}
+                      className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
                       rows={12}
+                      placeholder="Tell us about your background, experience, values, personality, and what drives you professionally. How do you approach relationships? What's your story? This helps us understand your unique voice and perspective..."
                     />
                   </div>
 
+                  {/* About Your Business */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      About Your Business ({aboutBusinessWordCount} words)
+                    <label className="block text-sm font-medium text-white mb-2">
+                      About Your Business ({aboutBusinessWordCount}/1250 words)
                     </label>
                     <textarea
                       value={user.aboutYourBusiness}
-                      onChange={(e) => setUser(prev => ({ ...prev, aboutYourBusiness: e.target.value }))}
-                      placeholder="Describe your business philosophy, approach, methodologies, and what sets you apart. Explain how you work with clients, your beliefs about your industry, and your unique perspective. Aim for around 1250 words."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                      onChange={(e) => {
+                        setUser(prev => ({ ...prev, aboutYourBusiness: e.target.value }));
+                        setAboutBusinessWordCount(e.target.value.split(' ').filter(word => word.length > 0).length);
+                      }}
+                      className="w-full px-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-40 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent backdrop-blur resize-none"
                       rows={12}
+                      placeholder="Describe your business philosophy, approach to clients, what makes you different, your methodology, success stories, and how you communicate value. What's your business personality? How do you build trust?..."
                     />
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-white text-opacity-70">
-                    Total words: <span className={totalWordCount >= 2000 ? 'text-green-400' : 'text-yellow-400'}>{totalWordCount}</span>
-                    <span className="ml-2">
-                      {totalWordCount < 2000 ? `(${2000 - totalWordCount} more needed)` : '✓ Ready for analysis'}
-                    </span>
-                  </div>
-                  
-                  <button
-                    onClick={analyzeWritingStyle}
-                    disabled={totalWordCount < 2000}
-                    className="px-4 py-2 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-                  >
-                    Analyze Writing Style
-                  </button>
+                {/* Analysis Section */}
+                <div className="mt-6">
+                  {!user.writingStyleAnalyzed ? (
+                    <div className="text-center">
+                      <button
+                        onClick={analyzeWritingStyle}
+                        disabled={totalWordCount < 2000}
+                        className="px-6 py-3 bg-yellow-400 text-purple-900 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      >
+                        {totalWordCount < 2000 
+                          ? `Need ${2000 - totalWordCount} more words to analyze` 
+                          : 'Analyze My Writing Style'}
+                      </button>
+                      <p className="text-white text-opacity-60 text-sm mt-2">
+                        Total: {totalWordCount}/2500 words (minimum 2000 required)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-green-500 bg-opacity-20 rounded-lg p-4">
+                      <h3 className="text-white font-semibold mb-2">✓ Writing Style Analyzed</h3>
+                      <p className="text-white text-opacity-80 text-sm mb-3">
+                        Your unique writing style has been analyzed and will be used for all AI-generated content.
+                      </p>
+                      <details className="text-white text-opacity-70">
+                        <summary className="cursor-pointer font-medium">View Analysis</summary>
+                        <div className="mt-2 text-sm whitespace-pre-wrap">{user.analyzedWritingStyle}</div>
+                      </details>
+                      <button
+                        onClick={analyzeWritingStyle}
+                        className="mt-3 px-4 py-2 bg-white bg-opacity-10 text-white rounded-lg hover:bg-opacity-20 transition-colors text-sm"
+                      >
+                        Re-analyze Style
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                {user.writingStyleAnalyzed && (
-                  <div className="mt-6 p-4 bg-green-500 bg-opacity-20 rounded-lg">
-                    <h4 className="text-green-400 font-semibold mb-2">✓ Writing Style Analyzed!</h4>
-                    <p className="text-white text-opacity-80 text-sm mb-3">
-                      Your unique writing style has been analyzed and will be used for all AI-generated content.
-                    </p>
-                    <details className="text-white text-opacity-70">
-                      <summary className="cursor-pointer font-medium">View Analysis</summary>
-                      <div className="mt-2 text-sm whitespace-pre-wrap">{user.analyzedWritingStyle}</div>
-                    </details>
-                    <button
-                      onClick={analyzeWritingStyle}
-                      className="mt-3 px-4 py-2 bg-white bg-opacity-10 text-white rounded-lg hover:bg-opacity-20 transition-colors text-sm"
-                    >
-                      Re-analyze Style
-                    </button>
-                  </div>
-                )}
               </div>
 
               <div className="flex space-x-3 mt-6">
