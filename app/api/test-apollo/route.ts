@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     let successfulApproach = null;
 
     // Try each approach until we find a match
-    for (const approach of testApproaches) {
+    for (const approach of nickTestApproaches) {
       console.log(`🚀 APOLLO TEST: Trying ${approach.name}...`);
       console.log('🚀 APOLLO TEST: Request:', approach.params);
 
@@ -187,7 +187,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: false,
         error: 'No match found with any approach',
-        testedApproaches: testApproaches.map(a => a.name)
+        testedApproaches: nickTestApproaches.map(a => a.name)
       });
     }
 
