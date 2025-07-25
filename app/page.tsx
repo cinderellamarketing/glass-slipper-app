@@ -1129,7 +1129,7 @@ const GlassSlipperApp = () => {
               })}
             </div>
           </div>
-        )}
+        </div>
       </header>
 
       {/* Main Content */}
