@@ -1,3 +1,5 @@
+console.log('🚨 ENRICHMENT API - TIMESTAMP: 2025-07-25-12:30:00 - VERSION: DEBUGGING');
+
 import { NextResponse } from 'next/server';
 
 // TypeScript interfaces
