@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    console.log('🚀 APOLLO TEST: Testing with credits enabled...');
+    console.log('🚀 APOLLO TEST: Testing Apollo API connectivity...');
     
     if (!process.env.APOLLO_API_KEY) {
       return NextResponse.json({ 
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // PHASE 1: Test with Tim Zheng (known complete profile) - WITH CREDITS
-    console.log('🔍 PHASE 1: Testing with Tim Zheng using credits...');
+    // Test with Tim Zheng (known complete profile) - WITH CREDITS
+    console.log('🔍 APOLLO TEST: Testing with Tim Zheng using credits...');
     
     const timTestApproaches = [
       {
@@ -42,10 +42,12 @@ export async function POST(request: Request) {
 
     let timFound = false;
     let creditsUsed = 0;
+    let successfulApproach = null;
+    let foundData = null;
     
     for (const approach of timTestApproaches) {
-      console.log(`🚀 PHASE 1: Trying ${approach.name}...`);
-      console.log(`💳 PHASE 1: This will use credits for email reveal`);
+      console.log(`🚀 APOLLO TEST: Trying ${approach.name}...`);
+      console.log(`💳 APOLLO TEST: This will use credits for email reveal`);
       
       try {
         const response = await fetch('https://api.apollo.io/api/v1/people/match', {
@@ -57,22 +59,22 @@ export async function POST(request: Request) {
           body: JSON.stringify(approach.params)
         });
 
-        console.log(`🔍 PHASE 1: ${approach.name} - Response status:`, response.status);
-        console.log(`🔍 PHASE 1: ${approach.name} - Response headers:`, Object.fromEntries(response.headers.entries()));
+        console.log(`🔍 APOLLO TEST: ${approach.name} - Response status:`, response.status);
+        console.log(`🔍 APOLLO TEST: ${approach.name} - Response headers:`, Object.fromEntries(response.headers.entries()));
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`🔍 PHASE 1: ${approach.name} - Full response:`, JSON.stringify(data, null, 2));
+          console.log(`🔍 APOLLO TEST: ${approach.name} - Full response:`, JSON.stringify(data, null, 2));
           
           // Check for credit usage information in response
           if (data.credits_consumed) {
             creditsUsed += data.credits_consumed;
-            console.log(`💳 PHASE 1: Credits consumed this request: ${data.credits_consumed}`);
+            console.log(`💳 APOLLO TEST: Credits consumed this request: ${data.credits_consumed}`);
           }
           
           if (data.person) {
-            console.log(`✅ PHASE 1: SUCCESS! Found Tim with ${approach.name}`);
-            console.log('✅ PHASE 1: Full person data:', {
+            console.log(`✅ APOLLO TEST: SUCCESS! Found Tim with ${approach.name}`);
+            console.log('✅ APOLLO TEST: Full person data:', {
               name: data.person.name,
               title: data.person.title,
               email: data.person.email,
@@ -80,173 +82,61 @@ export async function POST(request: Request) {
               linkedin: data.person.linkedin_url
             });
             timFound = true;
+            successfulApproach = approach.name;
+            foundData = data;
             break;
           } else {
-            console.log(`⚠️ PHASE 1: ${approach.name} - No person found in response`);
-            console.log(`⚠️ PHASE 1: ${approach.name} - Available keys:`, Object.keys(data));
+            console.log(`⚠️ APOLLO TEST: ${approach.name} - No person found in response`);
+            console.log(`⚠️ APOLLO TEST: ${approach.name} - Available keys:`, Object.keys(data));
           }
         } else {
           const errorText = await response.text();
-          console.log(`❌ PHASE 1: ${approach.name} - Error status ${response.status}:`, errorText);
+          console.log(`❌ APOLLO TEST: ${approach.name} - Error status ${response.status}:`, errorText);
           
           // Check if it's a credit-related error
           if (response.status === 402 || errorText.includes('credit')) {
-            console.log(`💳 PHASE 1: This appears to be a credit-related error`);
+            console.log(`💳 APOLLO TEST: This appears to be a credit-related error`);
           }
         }
       } catch (error) {
-        console.log(`❌ PHASE 1: ${approach.name} failed:`, error);
+        console.log(`❌ APOLLO TEST: ${approach.name} failed:`, error);
       }
       
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay when using credits
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Delay between requests
     }
 
     if (!timFound) {
       return NextResponse.json({
         success: false,
         error: 'Could not find Tim Zheng - possible credit or API issue',
-        phase: 'validation',
         creditsUsed: creditsUsed,
         debug: 'Check if you have sufficient credits and API permissions'
       });
     }
 
-    console.log('✅ PHASE 1: Tim Zheng found - API with credits is working!');
-    console.log(`💳 PHASE 1: Total credits used so far: ${creditsUsed}`);
-    console.log('🔍 PHASE 2: Now testing Nick T with credits...');
-
-    // PHASE 2: Test with Nick T (incomplete profile) - WITH CREDITS
-    const nickTestApproaches = [
-      {
-        name: 'Email-only search with full reveal',
-        params: {
-          email: 'nick.teige@sjpp.co.uk',
-          reveal_personal_emails: true,
-          include_organization: true
-        }
-      },
-      {
-        name: 'Name + Current Company with full reveal',
-        params: {
-          first_name: 'Nick',
-          last_name: 'Teige',
-          organization_name: 'Franklyn',
-          reveal_personal_emails: true,
-          include_organization: true
-        }
-      },
-      {
-        name: 'Name + Previous Company with full reveal',
-        params: {
-          first_name: 'Nick',
-          last_name: 'Teige',
-          organization_name: 'St. James\'s Place',
-          reveal_personal_emails: true,
-          include_organization: true
-        }
-      },
-      {
-        name: 'Broader search - Nick + Franklyn',
-        params: {
-          first_name: 'Nick',
-          organization_name: 'Franklyn',
-          reveal_personal_emails: true,
-          include_organization: true
-        }
-      }
-    ];
-
-    let foundMatch = null;
-    let successfulApproach = null;
-    let totalCreditsUsed = creditsUsed;
-
-    // Try each approach until we find a match
-    for (const approach of nickTestApproaches) {
-      console.log(`🚀 APOLLO TEST: Trying ${approach.name}...`);
-      console.log('🚀 APOLLO TEST: Request:', approach.params);
-      console.log(`💳 APOLLO TEST: This may consume credits...`);
-
-      try {
-        const response = await fetch('https://api.apollo.io/api/v1/people/match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.APOLLO_API_KEY
-          },
-          body: JSON.stringify(approach.params)
-        });
-
-        console.log(`🚀 APOLLO TEST: ${approach.name} - Response status:`, response.status);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`🔍 APOLLO TEST: ${approach.name} - Full response:`, JSON.stringify(data, null, 2));
-          
-          // Track credit usage
-          if (data.credits_consumed) {
-            totalCreditsUsed += data.credits_consumed;
-            console.log(`💳 APOLLO TEST: Credits consumed: ${data.credits_consumed}`);
-          }
-          
-          if (data.person) {
-            console.log(`✅ APOLLO TEST: SUCCESS with ${approach.name}!`);
-            console.log('✅ APOLLO TEST: Found person with full data:', {
-              name: data.person.name,
-              title: data.person.title,
-              email: data.person.email,
-              company: data.organization?.name,
-              location: `${data.person.city}, ${data.person.country}`,
-              linkedin: data.person.linkedin_url
-            });
-            
-            foundMatch = data;
-            successfulApproach = approach.name;
-            break; // Stop trying other approaches
-          } else {
-            console.log(`⚠️ APOLLO TEST: ${approach.name} - No person found`);
-            console.log(`⚠️ APOLLO TEST: ${approach.name} - Response keys:`, Object.keys(data));
-          }
-        } else {
-          const errorText = await response.text();
-          console.log(`❌ APOLLO TEST: ${approach.name} - Error status ${response.status}:`, errorText);
-          
-          // Check for credit issues
-          if (response.status === 402) {
-            console.log(`💳 APOLLO TEST: Insufficient credits error`);
-            break; // Stop trying if we're out of credits
-          }
-        }
-      } catch (error) {
-        console.log(`❌ APOLLO TEST: ${approach.name} - Exception:`, error);
-      }
-
-      // Longer wait between credit-consuming requests
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    console.log('✅ APOLLO TEST: Tim Zheng found - API with credits is working!');
+    console.log(`💳 APOLLO TEST: Total credits used: ${creditsUsed}`);
 
     const finalResult = {
       success: true,
-      validation_passed: true,
-      nick_found: !!foundMatch,
+      api_working: true,
       successfulApproach: successfulApproach,
-      totalCreditsUsed: totalCreditsUsed,
-      person: foundMatch?.person ? {
-        name: foundMatch.person.name,
-        title: foundMatch.person.title,
-        company: foundMatch.organization?.name,
-        email: foundMatch.person.email,
-        website: foundMatch.organization?.website_url,
-        industry: foundMatch.organization?.industry,
-        location: `${foundMatch.person.city}, ${foundMatch.person.country}`,
-        linkedin: foundMatch.person.linkedin_url
+      creditsUsed: creditsUsed,
+      person: foundData?.person ? {
+        name: foundData.person.name,
+        title: foundData.person.title,
+        company: foundData.organization?.name,
+        email: foundData.person.email,
+        website: foundData.organization?.website_url,
+        industry: foundData.organization?.industry,
+        location: `${foundData.person.city}, ${foundData.person.country}`,
+        linkedin: foundData.person.linkedin_url
       } : null,
-      rawData: foundMatch,
-      message: foundMatch ? 
-        `Found Nick using ${successfulApproach}. Used ${totalCreditsUsed} credits total.` :
-        `Nick not found in Apollo database. Used ${totalCreditsUsed} credits testing. This is normal for incomplete profiles.`
+      rawData: foundData,
+      message: `Apollo API working correctly! Found Tim using ${successfulApproach}. Used ${creditsUsed} credits.`
     };
 
-    console.log('🎯 FINAL RESULT:', finalResult.message);
+    console.log('🎯 APOLLO TEST COMPLETE:', finalResult.message);
     return NextResponse.json(finalResult);
 
   } catch (error) {
