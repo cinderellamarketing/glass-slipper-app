@@ -40,9 +40,15 @@ interface WebsiteCandidate {
 // Main API endpoint
 export async function POST(request: Request) {
   try {
-    console.log('🔍 API: Starting enrichment process...');
+    console.log('🔍 API: ===== ENRICHMENT PROCESS STARTING =====');
     
     const { contacts, userProfile } = await request.json();
+    
+    console.log('🔍 API: Request received:', {
+      contactsCount: contacts?.length || 0,
+      userProfileExists: !!userProfile,
+      userProfile: userProfile
+    });
     
     if (!contacts || !Array.isArray(contacts)) {
       console.log('❌ API: Invalid contacts data provided');
@@ -66,11 +72,26 @@ export async function POST(request: Request) {
       referralPartners: userProfile.referralPartners
     });
 
+    // ✅ CHECK ENV VARIABLES
+    console.log('🔍 API: Environment check:', {
+      claudeKeyExists: !!process.env.CLAUDE_API_KEY,
+      serperKeyExists: !!process.env.SERPER_API_KEY,
+      claudeKeyPreview: process.env.CLAUDE_API_KEY?.substring(0, 8) + '...',
+      serperKeyPreview: process.env.SERPER_API_KEY?.substring(0, 8) + '...'
+    });
+
     const enrichedContacts: Contact[] = [];
 
     for (const contact of contacts) {
       try {
-        console.log(`🔍 API: Starting enrichment for ${contact.name} at ${contact.company}`);
+        console.log(`🔍 API: ===== PROCESSING CONTACT: ${contact.name} =====`);
+        console.log(`🔍 API: Contact details:`, {
+          id: contact.id,
+          name: contact.name,
+          company: contact.company,
+          position: contact.position,
+          email: contact.email
+        });
         
         // Extract last name from full name
         const nameParts = contact.name.split(' ');
@@ -184,12 +205,18 @@ export async function POST(request: Request) {
         };
 
         console.log(`✅ API: Successfully enriched ${contact.name} with data:`, {
+          id: enrichedContact.id,
+          name: enrichedContact.name,
+          company: enrichedContact.company,
+          position: enrichedContact.position,
+          email: enrichedContact.email,
           lastName: enrichedContact.lastName,
           phone: enrichedContact.phone,
           website: enrichedContact.website,
           industry: enrichedContact.industry,
           category: enrichedContact.category,
           categoryReason: parsedData.categoryReason,
+          isEnriched: enrichedContact.isEnriched,
           industrySource: finalIndustry !== parsedData.industry ? 'position-analysis' : 'company-search',
           originalEmailPreserved: enrichedContact.email === contact.email
         });
@@ -197,11 +224,13 @@ export async function POST(request: Request) {
         enrichedContacts.push(enrichedContact);
         
         // Rate limiting
+        console.log('🔍 API: Applying rate limiting (1 second)...');
         await new Promise(resolve => setTimeout(resolve, 1000));
         
       } catch (contactError) {
         const errorMessage = contactError instanceof Error ? contactError.message : 'Unknown contact error';
         console.error(`❌ API: Failed to enrich ${contact.name}:`, errorMessage);
+        console.error(`❌ API: Error details:`, contactError);
         
         // Create fallback enriched contact
         const nameParts = contact.name.split(' ');
@@ -221,32 +250,68 @@ export async function POST(request: Request) {
           industry: analyzeIndustryFromPosition('Search failed', contact.position, contact.company)
         };
 
+        console.log(`⚠️ API: Created fallback contact for ${contact.name}:`, failedContact);
         enrichedContacts.push(failedContact);
       }
     }
 
-    console.log(`✅ API: Enrichment complete. Returning ${enrichedContacts.length} contacts`);
+    console.log(`✅ API: ===== ENRICHMENT COMPLETE =====`);
+    console.log(`✅ API: Processed ${contacts.length} contacts, enriched ${enrichedContacts.length}`);
     
-    return NextResponse.json({ 
+    // ✅ DETAILED RESPONSE DEBUGGING
+    console.log('🔍 API DEBUG: Final response structure validation:');
+    console.log('🔍 API DEBUG: enrichedContacts.length:', enrichedContacts.length);
+    console.log('🔍 API DEBUG: enrichedContacts array:', enrichedContacts.map(c => ({
+      id: c.id,
+      name: c.name,
+      isEnriched: c.isEnriched,
+      hasRequiredFields: !!(c.name && c.company && c.position && c.email)
+    })));
+
+    const responseObject = { 
       success: true,
       contacts: enrichedContacts 
+    };
+
+    console.log('🔍 API DEBUG: Complete response object:', JSON.stringify(responseObject, null, 2));
+    console.log('🔍 API DEBUG: Response validation:', {
+      hasSuccessProperty: responseObject.hasOwnProperty('success'),
+      successValue: responseObject.success,
+      hasContactsProperty: responseObject.hasOwnProperty('contacts'),
+      contactsIsArray: Array.isArray(responseObject.contacts),
+      contactsLength: responseObject.contacts.length,
+      allContactsValid: responseObject.contacts.every(c => c.id && c.name && c.email)
     });
 
+    console.log('🔍 API: About to return NextResponse.json...');
+    
+    return NextResponse.json(responseObject);
+
   } catch (error) {
-    console.error('❌ API: Enrichment process failed:', error);
+    console.error('❌ API: ===== CRITICAL ERROR IN ENRICHMENT =====');
+    console.error('❌ API: Error type:', typeof error);
+    console.error('❌ API: Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('❌ API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('❌ API: Full error object:', error);
+    
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return NextResponse.json({
+    const errorResponse = {
       success: false,
       error: 'Enrichment failed',
       details: errorMessage
-    }, { status: 500 });
+    };
+    
+    console.log('❌ API: Returning error response:', errorResponse);
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 // Perform web search using Serper API
 async function performWebSearch(query: string): Promise<SearchResponse> {
   try {
-    console.log('🔍 SERPER: Starting search for query:', query);
+    console.log('🔍 SERPER: ===== STARTING SEARCH =====');
+    console.log('🔍 SERPER: Search query:', query);
     
     if (!process.env.SERPER_API_KEY) {
       console.log('❌ SERPER: API key not found in environment');
@@ -255,34 +320,56 @@ async function performWebSearch(query: string): Promise<SearchResponse> {
 
     console.log('🔍 SERPER: Using API key:', process.env.SERPER_API_KEY.substring(0, 8) + '...');
     
+    const requestBody = {
+      q: query,
+      num: 10
+    };
+    
+    console.log('🔍 SERPER: Request body:', requestBody);
+    
     const response = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: {
         'X-API-KEY': process.env.SERPER_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        q: query,
-        num: 10
-      })
+      body: JSON.stringify(requestBody)
     });
 
-    console.log('🔍 SERPER: Response status:', response.status);
+    console.log('🔍 SERPER: Response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log('❌ SERPER: Error response:', errorText);
+      console.log('❌ SERPER: Error response body:', errorText);
       throw new Error(`Serper API failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     const resultCount = data.organic ? data.organic.length : 0;
-    console.log('✅ SERPER: Search successful, results:', resultCount);
+    console.log('✅ SERPER: Search successful:', {
+      resultCount,
+      hasOrganic: !!data.organic,
+      dataKeys: Object.keys(data)
+    });
+    
+    if (data.organic && data.organic.length > 0) {
+      console.log('🔍 SERPER: Sample results:', data.organic.slice(0, 2).map((r: any) => ({
+        title: r.title?.substring(0, 50) + '...',
+        link: r.link,
+        hasSnippet: !!r.snippet
+      })));
+    }
     
     return data;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown search error';
-    console.error('❌ SERPER: Search failed for query:', query, errorMessage);
+    console.error('❌ SERPER: Search failed for query:', query);
+    console.error('❌ SERPER: Error details:', errorMessage);
+    console.error('❌ SERPER: Full error:', error);
     throw error;
   }
 }
@@ -336,7 +423,9 @@ Respond with ONLY this JSON format (no additional text):
 // Perform Claude analysis
 async function performClaudeAnalysis(prompt: string): Promise<string> {
   try {
-    console.log('🔍 CLAUDE: Making Claude API call...');
+    console.log('🔍 CLAUDE: ===== STARTING ANALYSIS =====');
+    console.log('🔍 CLAUDE: Prompt length:', prompt.length);
+    console.log('🔍 CLAUDE: Prompt preview:', prompt.substring(0, 200) + '...');
     
     if (!process.env.CLAUDE_API_KEY) {
       console.log('❌ CLAUDE: API key not found in environment');
@@ -345,6 +434,21 @@ async function performClaudeAnalysis(prompt: string): Promise<string> {
 
     console.log('🔍 CLAUDE: Using API key:', process.env.CLAUDE_API_KEY.substring(0, 8) + '...');
     
+    const requestBody = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    };
+    
+    console.log('🔍 CLAUDE: Request details:', {
+      model: requestBody.model,
+      max_tokens: requestBody.max_tokens,
+      messageCount: requestBody.messages.length
+    });
+    
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -352,30 +456,48 @@ async function performClaudeAnalysis(prompt: string): Promise<string> {
         'x-api-key': process.env.CLAUDE_API_KEY,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      })
+      body: JSON.stringify(requestBody)
     });
 
-    console.log('🔍 CLAUDE: Response status:', response.status);
+    console.log('🔍 CLAUDE: Response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log('❌ CLAUDE: Error response:', errorText);
+      console.log('❌ CLAUDE: Error response body:', errorText);
       throw new Error(`Claude API failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('✅ CLAUDE: Analysis successful');
-    return data.content[0].text;
+    console.log('🔍 CLAUDE: Response data structure:', {
+      hasContent: !!data.content,
+      contentLength: data.content?.length || 0,
+      contentType: typeof data.content,
+      firstContentType: data.content?.[0]?.type,
+      dataKeys: Object.keys(data)
+    });
+    
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      console.log('❌ CLAUDE: Invalid response structure:', data);
+      throw new Error('Invalid Claude response structure');
+    }
+    
+    const responseText = data.content[0].text;
+    console.log('✅ CLAUDE: Analysis successful:', {
+      responseLength: responseText.length,
+      startsWithBrace: responseText.trim().startsWith('{'),
+      endsWithBrace: responseText.trim().endsWith('}'),
+      preview: responseText.substring(0, 100) + '...'
+    });
+    
+    return responseText;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown Claude error';
     console.error('❌ CLAUDE: API failed:', errorMessage);
+    console.error('❌ CLAUDE: Full error:', error);
     throw error;
   }
 }
@@ -383,39 +505,59 @@ async function performClaudeAnalysis(prompt: string): Promise<string> {
 // Parse Claude's response with category support
 function parseClaudeResponse(claudeResponse: string, extractedWebsites: string[], contactName: string): any {
   try {
-    console.log(`🔍 PARSE: Processing Claude response for ${contactName}:`, claudeResponse.substring(0, 200) + '...');
+    console.log(`🔍 PARSE: ===== PARSING CLAUDE RESPONSE FOR ${contactName} =====`);
+    console.log(`🔍 PARSE: Raw response length:`, claudeResponse.length);
+    console.log(`🔍 PARSE: Raw response preview:`, claudeResponse.substring(0, 200) + '...');
+    console.log(`🔍 PARSE: Raw response full:`, claudeResponse);
     
     // Extract JSON from Claude's response
     const jsonMatch = claudeResponse.match(/\{[\s\S]*\}/);
+    console.log(`🔍 PARSE: JSON match found:`, !!jsonMatch);
+    
     if (!jsonMatch) {
       console.log(`❌ PARSE: No JSON found in Claude response for ${contactName}`);
+      console.log(`❌ PARSE: Full response was:`, claudeResponse);
       throw new Error('No JSON found in Claude response');
     }
 
     const jsonString = jsonMatch[0];
     console.log(`🔍 PARSE: Extracted JSON string:`, jsonString);
     
-    const parsed = JSON.parse(jsonString);
-    console.log(`🔍 PARSE: Successfully parsed JSON for ${contactName}:`, parsed);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonString);
+      console.log(`✅ PARSE: JSON parsing successful for ${contactName}`);
+    } catch (parseError) {
+      console.log(`❌ PARSE: JSON parsing failed for ${contactName}:`, parseError);
+      console.log(`❌ PARSE: Invalid JSON was:`, jsonString);
+      throw parseError;
+    }
     
-    return {
+    const result = {
       phone: parsed.phone || 'Not found',
       website: parsed.website || 'Not found',
       industry: parsed.industry || 'Not found',
       category: parsed.category || 'Other',
       categoryReason: parsed.categoryReason || 'No reason provided'
     };
+    
+    console.log(`✅ PARSE: Final parsed result for ${contactName}:`, result);
+    return result;
+    
   } catch (error) {
     console.error(`❌ PARSE: Failed to parse Claude response for ${contactName}:`, error);
     console.error(`❌ PARSE: Raw response was:`, claudeResponse);
     
-    return {
+    const fallbackResult = {
       phone: 'Parsing failed',
       website: extractedWebsites.length > 0 ? extractedWebsites[0] : 'Parsing failed',
       industry: 'Parsing failed',
       category: 'Other',
       categoryReason: 'Failed to parse Claude response'
     };
+    
+    console.log(`⚠️ PARSE: Using fallback result for ${contactName}:`, fallbackResult);
+    return fallbackResult;
   }
 }
 
