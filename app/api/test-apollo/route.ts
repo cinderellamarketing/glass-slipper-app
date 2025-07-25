@@ -119,6 +119,7 @@ export async function POST(request: Request) {
 
     const finalResult = {
       success: true,
+      found: !!foundData?.person,
       api_working: true,
       successfulApproach: successfulApproach,
       creditsUsed: creditsUsed,
